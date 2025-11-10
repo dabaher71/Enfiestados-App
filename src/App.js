@@ -360,7 +360,7 @@ const EventsApp = () => {
     </div>
   );
 
- const renderAuth = () => {
+  const renderAuth = () => {
   return (
     <div className="flex-1 flex items-center justify-center p-6 bg-gray-900">
       <div className="w-full max-w-md">
@@ -486,7 +486,7 @@ const EventsApp = () => {
       </div>
     </div>
   );
-};
+  };
 
   // --- FIN FUNCIONES DE RENDERIZADO (Auth y Onboarding) ---
 
