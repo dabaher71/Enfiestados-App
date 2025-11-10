@@ -1,0 +1,209 @@
+/* Código por defecto de React (Mantenido) */
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------------------------------------------------- */
+/* IMPLEMENTACIÓN PARA LA HOT BAR             */
+/* ---------------------------------------------------- */
+
+/* 1. Estilo para la barra fija (Asegura visibilidad y posición) */
+.fixed-navbar {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    height: 60px;
+    background-color: #ffffff;
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+/* 2. Estilo para el Contenedor Principal */
+.main-content-wrapper {
+    padding-bottom: 60px;
+    min-height: 100vh;
+}
+
+/* ---------------------------------------------------- */
+/* 🎯 NUEVAS CORRECCIONES PARA SCROLL Y Z-INDEX */
+/* ---------------------------------------------------- */
+
+/* Solucionar el scroll en móviles - Smooth scroll */
+* {
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+}
+
+/* Arreglar la barra de navegación en iOS - Safe Areas */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Mejorar el scroll - Performance optimizado */
+.overflow-y-auto {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Evitar que los botones se seleccionen al hacer tap */
+button {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+/* Optimizar el scroll del contenido principal */
+.flex-1 {
+  position: relative;
+}
+
+/* Evitar problemas de z-index en modales */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+/* ---------------------------------------------------- */
+/* 🎨 MEJORAS VISUALES ADICIONALES */
+/* ---------------------------------------------------- */
+
+/* Animación suave para transiciones de tabs */
+.tab-content {
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Sombra suave para la barra de navegación */
+.nav-bar-shadow {
+  box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1),
+              0 -2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Optimizar scroll en contenedores específicos */
+.profile-content,
+.feed-content,
+.search-content {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevenir scroll horizontal no deseado */
+body {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+/* Mejorar la experiencia táctil en móviles */
+input, textarea, select {
+  font-size: 16px; /* Previene zoom en iOS */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Asegurar que los modales estén siempre visibles */
+.modal-content {
+  position: relative;
+  z-index: 101;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* Animación para el spinner de carga */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* ---------------------------------------------------- */
+/* 🔧 FIX ESPECÍFICOS PARA TU APP */
+/* ---------------------------------------------------- */
+
+/* Asegurar que el contenedor principal no tenga problemas */
+.max-w-md {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Evitar que los elementos se superpongan incorrectamente */
+.sticky {
+  position: sticky;
+  position: -webkit-sticky;
+}
+
+/* Mejorar la visibilidad de elementos interactivos */
+a, button, [role="button"] {
+  cursor: pointer;
+}
+
+/* Prevenir problemas de touch en iOS Safari */
+* {
+  -webkit-touch-callout: none;
+}
+
+/* Optimizar renderizado */
+img {
+  max-width: 100%;
+  height: auto;
+}

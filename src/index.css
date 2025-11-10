@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilos minimalistas para el mapa estilo Airbnb */
+.leaflet-container {
+  font-family: inherit;
+  background: #f9fafb !important;
+  border-radius: 24px !important;
+}
+
+/* ✅ Reset para móviles */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* Ocultar controles de zoom por defecto */
+.leaflet-control-zoom {
+  display: none !important;
+}
+
+/* Popups redondeados */
+.leaflet-popup-content-wrapper {
+  border-radius: 16px !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
+  padding: 4px !important;
+}
+
+.leaflet-popup-tip {
+  display: none !important;
+}
+
+.leaflet-popup-close-button {
+  display: none !important;
+}
+
+/* Atribución más discreta */
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(10px);
+  border-radius: 8px !important;
+  font-size: 10px !important;
+  padding: 4px 8px !important;
+  margin: 8px !important;
+}
+
+/* Marcadores personalizados sin bordes */
+.custom-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Asegurar que el mapa tenga bordes redondeados */
+.map-wrapper {
+  border-radius: 24px !important;
+  overflow: hidden !important;
+}
+
+
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh; /* Dynamic viewport height para móviles */
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ✅ Evitar zoom en inputs en iOS */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+
+/* ✅ Scroll suave en móviles */
+.overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ✅ Deshabilitar pull-to-refresh en toda la app */
+body {
+  overscroll-behavior-y: none;
+}
+
+/* ✅ Safe area para dispositivos con notch */
+@supports (padding: max(0px)) {
+  .safe-area-top {
+    padding-top: max(env(safe-area-inset-top), 1rem);
+  }
+  
+  .safe-area-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+  }
+}
+
+/* ✅ Mejorar performance de animaciones */
+.transition-all,
+.hover\:scale-105:hover {
+  will-change: transform;
+}
+
+/* ✅ Estilos para el mapa en móviles */
+.map-wrapper {
+  touch-action: pan-x pan-y;
+}
+
+/* Feedback visual al tocar */
+
+button:active,
+.cursor-pointer:active {
+  opacity: 0.7;
+  transform: scale(0.98);
+}
