@@ -63,40 +63,32 @@ const userSchema = new mongoose.Schema({
   following: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }]
-
+  }],  // ← AGREGUÉ ESTA COMA QUE FALTABA
+  
   perfilPublico: { 
-  type: Boolean, 
-  default: true 
+    type: Boolean, 
+    default: true 
   },
   
   verificado: { 
-  type: Boolean, 
-  default: false 
+    type: Boolean, 
+    default: false 
   },
-  seguidores: [{ 
-  type: mongoose.Schema.Types.ObjectId, 
-  ref: 'User' 
-  }],
-  siguiendo: [{ 
-  type: mongoose.Schema.Types.ObjectId, 
-  ref: 'User' 
-  }],
+  
   usuariosBloqueados: [{ 
-  type: mongoose.Schema.Types.ObjectId, 
-  ref: 'User' 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User' 
   }],
+  
   bio: { 
-  type: String, 
-  maxlength: 500,
-  default: '' 
+    type: String, 
+    maxlength: 500,
+    default: '' 
   }
 
 }, {
   timestamps: true
 });
-
-  
 
 // Encriptar contraseña antes de guardar
 userSchema.pre('save', async function(next) {

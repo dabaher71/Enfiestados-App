@@ -2,6 +2,13 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const User = require('../models/User');
 
+// ✅ LOGS DE DIAGNÓSTICO
+console.log('🔍 ========== VERIFICANDO CREDENCIALES DE GOOGLE ==========');
+console.log('CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? '✅ Existe' : '❌ NO existe');
+console.log('CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? '✅ Existe' : '❌ NO existe');
+console.log('CALLBACK_URL:', process.env.GOOGLE_CALLBACK_URL);
+console.log('==========================================================');
+
 passport.use(
   new GoogleStrategy(
     {

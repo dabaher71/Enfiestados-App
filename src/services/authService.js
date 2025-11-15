@@ -23,7 +23,7 @@ export const authService = {
 
   // Login con Google (OAuth)
   loginWithGoogle: () => {
-    window.location.href = 'http://localhost:5000/api/auth/google';
+    window.location.href = 'http://localhost:5001/api/auth/google';
   },
 
   // Logout
