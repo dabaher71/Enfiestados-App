@@ -22,9 +22,10 @@ export const authService = {
   },
 
   // Login con Google (OAuth)
-  loginWithGoogle: () => {
-    window.location.href = 'http://localhost:5001/api/auth/google';
-  },
+loginWithGoogle: () => {
+  const apiURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  window.location.href = `${apiURL}/api/auth/google`;
+},
 
   // Logout
   logout: () => {

@@ -155,12 +155,12 @@ const EventsApp = () => {
   }, [isAuthenticated, showOnboarding]);
 
     useEffect(() => {
-  if (activeTab === 'profile' && currentUserData?.id) {
-    console.log('📋 Cargando eventos del organizador:', currentUserData.id);
-    loadOrganizedEvents(currentUserData.id);
+  const userId = currentUserData?._id || currentUserData?.id;
+  if (activeTab === 'profile' && userId) {
+    console.log('📋 Cargando eventos del organizador:', userId);
+    loadOrganizedEvents(userId);
   }
-  }, [activeTab, currentUserData, profileRefresh]);
-
+}, [activeTab, currentUserData, profileRefresh]);
   // Función para cargar eventos
   const loadEvents = async () => {
     try {
@@ -2687,42 +2687,45 @@ const EventsApp = () => {
   };
 
   const handleLogin = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+  
+  if (!formData.email || !formData.password) {
+    alert('Por favor completa todos los campos');
+    return;
+  }
+  
+  if (!formData.email.includes('@')) {
+    alert('Por favor ingresa un email válido');
+    return;
+  }
+  
+  if (formData.password.length < 6) {
+    alert('La contraseña debe tener al menos 6 caracteres');
+    return;
+  }
+  
+  try {
+    const { email, password } = formData;
+    const data = await authService.login({ email, password });
     
-    if (!formData.email || !formData.password) {
-      alert('Por favor completa todos los campos');
-      return;
+    // ✅ AGREGAR ESTA LÍNEA:
+    localStorage.setItem('user', JSON.stringify(data.user));
+    
+    setCurrentUserData(data.user);
+    
+    if (data.user.location) {
+      setUserPreferences(prev => ({
+        ...prev,
+        location: data.user.location,
+        categories: data.user.categories || []
+      }));
     }
     
-    if (!formData.email.includes('@')) {
-      alert('Por favor ingresa un email válido');
-      return;
-    }
-    
-    if (formData.password.length < 6) {
-      alert('La contraseña debe tener al menos 6 caracteres');
-      return;
-    }
-    
-    try {
-      const { email, password } = formData;
-      const data = await authService.login({ email, password });
-      
-      setCurrentUserData(data.user);
-      
-      if (data.user.location) {
-        setUserPreferences(prev => ({
-          ...prev,
-          location: data.user.location,
-          categories: data.user.categories || []
-        }));
-      }
-      
-      setIsAuthenticated(true);
-    } catch (error) {
-      console.error('Error en login:', error);
-      alert(error.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.');
-    }
+    setIsAuthenticated(true);
+  } catch (error) {
+    console.error('Error en login:', error);
+    alert(error.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.');
+  }
   };
 
   const handleRegister = async (e) => {

@@ -19,8 +19,8 @@ const AuthCallback = () => {
       localStorage.setItem('token', token);
       
       // Obtener datos del usuario
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-      fetch(`${apiUrl}/auth/me`, {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      fetch(`${apiUrl}/api/auth/me`, {  // ← CAMBIO AQUÍ: agregué /api
         headers: {
           'Authorization': `Bearer ${token}`
         }
