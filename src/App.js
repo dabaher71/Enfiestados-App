@@ -59,7 +59,6 @@ const EventsApp = () => {
     hasParking: false,
     acceptsOnlinePayment: true
   });
-  const [isOwnProfile, setIsOwnProfile] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [profileRefresh, setProfileRefresh] = useState(0);
   const [currentUserData, setCurrentUserData] = useState(null);
@@ -610,18 +609,28 @@ const EventsApp = () => {
                     <div className="p-4">
                       <h3 className="text-white text-lg font-bold mb-2">{event.title}</h3>
                       
-                        <div 
-                          className="flex items-center gap-2 text-gray-400 text-sm mb-2 hover:text-blue-400 transition-colors cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation(); // Evita que abra el detalle del evento
-                            if (event.organizer?._id) {
-                            loadUserProfile(event.organizer._id);
-                            setActiveTab('profile');}
-                            }}
-                            >
-                              <User className="w-4 h-4" /> 
-                              <span>{event.organizer?.name || 'Organizador'}</span>
-                          </div>
+                      <div 
+  className="flex items-center gap-2 text-gray-400 text-sm mb-2 hover:text-blue-400 transition-colors cursor-pointer"
+  onClick={(e) => {
+    e.stopPropagation();
+    if (event.organizer?._id) {
+      const loggedInUser = authService.getCurrentUser();
+      
+      // ✅ Si el organizador eres tú, limpia viewingUserProfile
+      if (event.organizer._id === loggedInUser.id) {
+        setViewingUserProfile(null);
+        setActiveTab('profile');
+      } else {
+        // ✅ Si es otra persona, carga su perfil
+        loadUserProfile(event.organizer._id);
+        setActiveTab('profile');
+      }
+    }
+  }}
+>
+  <User className="w-4 h-4" /> 
+  <span>{event.organizer?.name || 'Organizador'}</span>
+                      </div>
 
                       <div className="flex items-center gap-2 text-gray-400 text-sm mb-2">
                         <MapPin className="w-4 h-4" />
@@ -976,6 +985,15 @@ const EventsApp = () => {
         return;
       }
 
+      const selectedDate = new Date(eventData.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (selectedDate < today) {
+        alert('❌ No puedes crear eventos en fechas pasadas');
+        return;
+          }
+      
       if (!eventData.location) {
         alert('Por favor selecciona una ubicación en el mapa');
         return;
@@ -1094,26 +1112,25 @@ const EventsApp = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-white font-semibold mb-2 block">Fecha *</label>
+             <div>
+              <label className="text-white font-semibold mb-2 block">Fecha *</label>
+                <input
+                  type="date"
+                  value={eventData.date}
+                   onChange={(e) => handleEventInputChange('date', e.target.value)}
+                  min={new Date().toISOString().split('T')[0]} // ✅ No permite fechas pasadas
+                     className="w-full bg-gray-800 text-white text-base rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+              </div>
+              <div>
+                <label className="text-white font-semibold mb-2 block">Hora *</label>
                   <input
-                    type="date"
-                    value={eventData.date}
-                    onChange={(e) => handleEventInputChange('date', e.target.value)}
-                    className="w-full bg-gray-800 text-white text-base rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-600"
-                  />
-                </div>
-                <div>
-                  <label className="text-white font-semibold mb-2 block">Hora *</label>
-                  <input
-                    type="time"
+                   type="time"
                     value={eventData.time}
                     onChange={(e) => handleEventInputChange('time', e.target.value)}
                     className="w-full bg-gray-800 text-white text-base rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-600"
-                  />
-                </div>
-              </div>
+                    />
+                    </div>
 
               <button
                 onClick={() => setCreateEventStep(2)}
@@ -1420,17 +1437,33 @@ const EventsApp = () => {
   );
 
   const renderProfile = () => {
-  const currentUser = currentUserData || authService.getCurrentUser();
+  // ✅ Usuario logueado (tú)
+  const loggedInUser = currentUserData || authService.getCurrentUser();
+  
+  // ✅ Usuario cuyo perfil estás viendo (puede ser tú u otra persona)
+  const profileUser = viewingUserProfile || loggedInUser;
+  
+  // ✅ IDs normalizados (usar _id o id)
+  const loggedInUserId = loggedInUser?._id || loggedInUser?.id;
+  const profileUserId = profileUser?._id || profileUser?.id;
+  
+  // ✅ Determinar si es tu propio perfil
+  const isOwnProfile = !viewingUserProfile || (loggedInUserId === profileUserId);
+  
+  // ✅ Verificar si ya sigues a este usuario (comparar con ambos _id e id)
+  const isFollowing = (loggedInUser?.following || []).some(followId => 
+    followId === profileUserId || followId === profileUser?._id || followId === profileUser?.id
+  );
   
   const profileData = {
-    name: currentUser?.name || 'Usuario',
-    avatar: currentUser?.avatar || null,
-    coverImage: currentUser?.coverImage || null,
-    gender: currentUser?.gender || 'no-especificado',
-    eventsCount: organizedEvents.length,
-    interestsCount: currentUser?.interests?.length || 0,
+    name: profileUser?.name || 'Usuario',
+    avatar: profileUser?.avatar || null,
+    coverImage: profileUser?.coverImage || null,
+    gender: profileUser?.gender || 'no-especificado',
+    eventsCount: isOwnProfile ? organizedEvents.length : (viewingUserEvents?.length || 0),
+    interestsCount: profileUser?.interests?.length || 0,
     attendancesCount: 0,
-    interests: currentUser?.interests || [],
+    interests: profileUser?.interests || [],
     organizedEvents: organizedEvents
   };
 
@@ -1491,26 +1524,26 @@ const EventsApp = () => {
           )}
         </div>
 
-            <div className="flex gap-8 mt-4 mb-4">
-  <div className="text-center">
-    <div className="text-white text-2xl font-bold">{profileData.eventsCount}</div>
-    <div className="text-gray-400 text-xs">Eventos</div>
-  </div>
-  <div className="text-center">
-    <div className="text-white text-2xl font-bold">{currentUser?.followers?.length || 0}</div>
-    <div className="text-gray-400 text-xs">Seguidores</div>
-  </div>
-  <div className="text-center">
-    <div className="text-white text-2xl font-bold">{profileData.interestsCount}</div>
-    <div className="text-gray-400 text-xs">Intereses</div>
-  </div>
-            </div>
+        <div className="flex gap-8 mt-4 mb-4">
+          <div className="text-center">
+            <div className="text-white text-2xl font-bold">{profileData.eventsCount}</div>
+            <div className="text-gray-400 text-xs">Eventos</div>
+          </div>
+          <div className="text-center">
+            <div className="text-white text-2xl font-bold">{profileUser?.followers?.length || 0}</div>
+            <div className="text-gray-400 text-xs">Seguidores</div>
+          </div>
+          <div className="text-center">
+            <div className="text-white text-2xl font-bold">{profileData.interestsCount}</div>
+            <div className="text-gray-400 text-xs">Intereses</div>
+          </div>
+        </div>
 
         <h1 className="text-white text-2xl font-bold mb-3">{profileData.name}</h1>
 
         {/* Bio */}
-        {currentUser?.bio && (
-              <p className="text-gray-400 text-sm mb-4">{currentUser.bio}</p>
+        {profileUser?.bio && (
+          <p className="text-gray-400 text-sm mb-4">{profileUser.bio}</p>
         )}
 
         {isOwnProfile ? (
@@ -1534,7 +1567,46 @@ const EventsApp = () => {
           </>
         ) : (
           <button 
-            onClick={() => setIsFollowing(!isFollowing)}
+            onClick={async () => {
+              try {
+                const userId = profileUser._id || profileUser.id;
+                
+                if (isFollowing) {
+                  await userService.unfollowUser(userId);
+                  
+                  const updatedUser = {...loggedInUser};
+                  updatedUser.following = (updatedUser.following || []).filter(id => id !== userId);
+                  localStorage.setItem('user', JSON.stringify(updatedUser));
+                  setCurrentUserData({...updatedUser});
+                  
+                  if (viewingUserProfile) {
+                    const updatedProfile = {...viewingUserProfile};
+                    updatedProfile.followers = (updatedProfile.followers || []).filter(id => id !== (loggedInUser._id || loggedInUser.id));
+                    setViewingUserProfile(updatedProfile);
+                  }
+                  
+                  alert('✅ Dejaste de seguir a ' + profileUser.name);
+                } else {
+                  await userService.followUser(userId);
+                  
+                  const updatedUser = {...loggedInUser};
+                  updatedUser.following = [...(updatedUser.following || []), userId];
+                  localStorage.setItem('user', JSON.stringify(updatedUser));
+                  setCurrentUserData({...updatedUser});
+                  
+                  if (viewingUserProfile) {
+                    const updatedProfile = {...viewingUserProfile};
+                    updatedProfile.followers = [...(updatedProfile.followers || []), (loggedInUser._id || loggedInUser.id)];
+                    setViewingUserProfile(updatedProfile);
+                  }
+                  
+                  alert('✅ Ahora sigues a ' + profileUser.name);
+                }
+              } catch (error) {
+                console.error('Error al seguir/dejar de seguir:', error);
+                alert('❌ Error: ' + (error.response?.data?.message || error.message));
+              }
+            }}
             className={`w-full font-semibold py-3 rounded-xl transition-all mb-6 ${
               isFollowing 
                 ? 'bg-gray-800 hover:bg-gray-700 text-white' 
@@ -1581,96 +1653,189 @@ const EventsApp = () => {
               </div>
             ) : organizedEvents.length > 0 ? (
               <div className="space-y-3">
-                {organizedEvents.map(event => {
-                  const category = availableCategories.find(c => c.id === event.category);
+                {(() => {
+                  const now = new Date();
+                  const upcomingEvents = organizedEvents.filter(event => new Date(event.date) >= now);
+                  const pastEvents = organizedEvents.filter(event => new Date(event.date) < now);
                   
                   return (
-                    <div 
-                      key={event._id}
-                      className="bg-gray-800 rounded-xl overflow-hidden"
-                    >
-                      {/* Imagen y contenido del evento */}
-                      <div 
-                        className="flex gap-3 cursor-pointer hover:bg-gray-750 transition-all"
-                        onClick={async () => {
-                          try {
-                            const response = await eventService.getEventById(event._id);
-                            setSelectedEvent(response.event);
-                            setShowEventDetail(true);
-                          } catch (error) {
-                            console.error('Error al cargar evento:', error);
-                            alert('Error al cargar el evento');
-                          }
-                        }}
-                      >
-                        <img 
-                          src={event.image} 
-                          alt={event.title}
-                          className="w-24 h-24 object-cover"
-                          loading="lazy"
-                          decoding="async"
-                        />
-                        <div className="flex-1 py-3 pr-3">
-                          <h3 className="text-white font-semibold mb-1">{event.title}</h3>
-                          <p className="text-gray-400 text-xs mb-1">
-                            {new Date(event.date).toLocaleDateString('es-ES', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric'
-                            })} • {event.time}
-                          </p>
-                          <div className="flex items-center gap-3 text-gray-400 text-xs">
-                            <span className="flex items-center gap-1">
-                              <User className="w-3 h-3" />
-                              {event.attendees?.length || 0}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Heart className="w-3 h-3" />
-                              {event.likes?.length || 0}
-                            </span>
-                            {category && (
-                              <span 
-                                className="px-2 py-0.5 rounded-full text-white text-xs font-medium"
-                                style={{ backgroundColor: category.color }}
-                              >
-                                {category.icon}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                    <>
+                      {upcomingEvents.map(event => {
+                        const category = availableCategories.find(c => c.id === event.category);
+                        
+                        return (
+                          <div 
+                            key={event._id}
+                            className="bg-gray-800 rounded-xl overflow-hidden"
+                          >
+                            <div 
+                              className="flex gap-3 cursor-pointer hover:bg-gray-750 transition-all"
+                              onClick={async () => {
+                                try {
+                                  const response = await eventService.getEventById(event._id);
+                                  setSelectedEvent(response.event);
+                                  setShowEventDetail(true);
+                                } catch (error) {
+                                  console.error('Error al cargar evento:', error);
+                                  alert('Error al cargar el evento');
+                                }
+                              }}
+                            >
+                              <img 
+                                src={event.image} 
+                                alt={event.title}
+                                className="w-24 h-24 object-cover"
+                                loading="lazy"
+                                decoding="async"
+                              />
+                              <div className="flex-1 py-3 pr-3">
+                                <h3 className="text-white font-semibold mb-1">{event.title}</h3>
+                                <p className="text-gray-400 text-xs mb-1">
+                                  {new Date(event.date).toLocaleDateString('es-ES', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric'
+                                  })} • {event.time}
+                                </p>
+                                <div className="flex items-center gap-3 text-gray-400 text-xs">
+                                  <span className="flex items-center gap-1">
+                                    <User className="w-3 h-3" />
+                                    {event.attendees?.length || 0}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Heart className="w-3 h-3" />
+                                    {event.likes?.length || 0}
+                                  </span>
+                                  {category && (
+                                    <span 
+                                      className="px-2 py-0.5 rounded-full text-white text-xs font-medium"
+                                      style={{ backgroundColor: category.color }}
+                                    >
+                                      {category.icon}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
 
-                      {/* 🎯 BOTONES DE EDITAR Y ELIMINAR */}
-                      <div className="flex gap-2 p-3 bg-gray-900 border-t border-gray-700">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('🔴 Botón Editar clickeado para:', event.title);
-                            handleEditEvent(event);
-                          }}
-                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          Editar
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteEvent(event._id, event.title);
-                          }}
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          Eliminar
-                        </button>
-                      </div>
-                    </div>
+                            <div className="flex gap-2 p-3 bg-gray-900 border-t border-gray-700">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditEvent(event);
+                                }}
+                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                Editar
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteEvent(event._id, event.title);
+                                }}
+                                className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Eliminar
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      
+                      {pastEvents.length > 0 && (
+                        <>
+                          <div className="flex items-center gap-3 my-6">
+                            <div className="flex-1 h-px bg-gray-700"></div>
+                            <span className="text-gray-500 text-sm font-medium">Eventos finalizados</span>
+                            <div className="flex-1 h-px bg-gray-700"></div>
+                          </div>
+                          
+                          {pastEvents.map(event => {
+                            const category = availableCategories.find(c => c.id === event.category);
+                            
+                            return (
+                              <div 
+                                key={event._id}
+                                className="bg-gray-800/50 rounded-xl overflow-hidden opacity-75"
+                              >
+                                <div 
+                                  className="flex gap-3 cursor-pointer hover:bg-gray-750 transition-all"
+                                  onClick={async () => {
+                                    try {
+                                      const response = await eventService.getEventById(event._id);
+                                      setSelectedEvent(response.event);
+                                      setShowEventDetail(true);
+                                    } catch (error) {
+                                      console.error('Error al cargar evento:', error);
+                                      alert('Error al cargar el evento');
+                                    }
+                                  }}
+                                >
+                                  <img 
+                                    src={event.image} 
+                                    alt={event.title}
+                                    className="w-24 h-24 object-cover"
+                                    loading="lazy"
+                                    decoding="async"
+                                  />
+                                  <div className="flex-1 py-3 pr-3">
+                                    <h3 className="text-white font-semibold mb-1">{event.title}</h3>
+                                    <p className="text-gray-400 text-xs mb-1">
+                                      {new Date(event.date).toLocaleDateString('es-ES', {
+                                        day: '2-digit',
+                                        month: 'short',
+                                        year: 'numeric'
+                                      })} • {event.time}
+                                    </p>
+                                    <div className="flex items-center gap-3 text-gray-400 text-xs">
+                                      <span className="flex items-center gap-1">
+                                        <User className="w-3 h-3" />
+                                        {event.attendees?.length || 0}
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <Heart className="w-3 h-3" />
+                                        {event.likes?.length || 0}
+                                      </span>
+                                      {category && (
+                                        <span 
+                                          className="px-2 py-0.5 rounded-full text-white text-xs font-medium"
+                                          style={{ backgroundColor: category.color }}
+                                        >
+                                          {category.icon}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex gap-2 p-3 bg-gray-900 border-t border-gray-700">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteEvent(event._id, event.title);
+                                    }}
+                                    className="w-full bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Eliminar
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </>
+                      )}
+                    </>
                   );
-                })}
+                })()}
               </div>
             ) : (
               <div className="text-center py-8 bg-gray-800 rounded-xl">
@@ -1687,30 +1852,188 @@ const EventsApp = () => {
           </div>
         )}
 
+        {!isOwnProfile && (
+  <div className="mb-6">
+    <h2 className="text-white font-bold text-lg mb-3">
+      Eventos organizados ({viewingUserEvents?.length || 0})
+    </h2>
+    
+    {loadingUserProfile ? (
+      <div className="text-center py-8">
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+        <p className="text-gray-400">Cargando eventos...</p>
+      </div>
+    ) : viewingUserEvents && viewingUserEvents.length > 0 ? (
+      <div className="space-y-3">
+        {(() => {
+          // ✅ Separar eventos en actuales y finalizados
+          const now = new Date();
+          const upcomingEvents = viewingUserEvents.filter(event => new Date(event.date) >= now);
+          const pastEvents = viewingUserEvents.filter(event => new Date(event.date) < now);
+          
+          return (
+            <>
+              {/* Eventos actuales/futuros */}
+              {upcomingEvents.map(event => {
+                const category = availableCategories.find(c => c.id === event.category);
+                
+                return (
+                  <div 
+                    key={event._id}
+                    className="bg-gray-800 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-750 transition-all"
+                    onClick={async () => {
+                      try {
+                        const response = await eventService.getEventById(event._id);
+                        setSelectedEvent(response.event);
+                        setShowEventDetail(true);
+                      } catch (error) {
+                        console.error('Error al cargar evento:', error);
+                      }
+                    }}
+                  >
+                    <div className="flex gap-3 p-3">
+                      <img 
+                        src={event.image} 
+                        alt={event.title}
+                        className="w-24 h-24 object-cover rounded-lg"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <div className="flex-1">
+                        <h3 className="text-white font-semibold mb-1">{event.title}</h3>
+                        <p className="text-gray-400 text-xs mb-1">
+                          {new Date(event.date).toLocaleDateString('es-ES', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric'
+                          })} • {event.time}
+                        </p>
+                        <div className="flex items-center gap-3 text-gray-400 text-xs">
+                          <span className="flex items-center gap-1">
+                            <User className="w-3 h-3" />
+                            {event.attendees?.length || 0}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Heart className="w-3 h-3" />
+                            {event.likes?.length || 0}
+                          </span>
+                          {category && (
+                            <span 
+                              className="px-2 py-0.5 rounded-full text-white text-xs font-medium"
+                              style={{ backgroundColor: category.color }}
+                            >
+                              {category.icon}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {/* ✅ Separador de eventos finalizados */}
+              {pastEvents.length > 0 && (
+                <>
+                  <div className="flex items-center gap-3 my-6">
+                    <div className="flex-1 h-px bg-gray-700"></div>
+                    <span className="text-gray-500 text-sm font-medium">Eventos finalizados</span>
+                    <div className="flex-1 h-px bg-gray-700"></div>
+                  </div>
+                  
+                  {/* Eventos pasados */}
+                  {pastEvents.map(event => {
+                    const category = availableCategories.find(c => c.id === event.category);
+                    
+                    return (
+                      <div 
+                        key={event._id}
+                        className="bg-gray-800/50 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-750 transition-all opacity-75"
+                        onClick={async () => {
+                          try {
+                            const response = await eventService.getEventById(event._id);
+                            setSelectedEvent(response.event);
+                            setShowEventDetail(true);
+                          } catch (error) {
+                            console.error('Error al cargar evento:', error);
+                          }
+                        }}
+                      >
+                        <div className="flex gap-3 p-3">
+                          <img 
+                            src={event.image} 
+                            alt={event.title}
+                            className="w-24 h-24 object-cover rounded-lg"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                          <div className="flex-1">
+                            <h3 className="text-white font-semibold mb-1">{event.title}</h3>
+                            <p className="text-gray-400 text-xs mb-1">
+                              {new Date(event.date).toLocaleDateString('es-ES', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric'
+                              })} • {event.time}
+                            </p>
+                            <div className="flex items-center gap-3 text-gray-400 text-xs">
+                              <span className="flex items-center gap-1">
+                                <User className="w-3 h-3" />
+                                {event.attendees?.length || 0}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Heart className="w-3 h-3" />
+                                {event.likes?.length || 0}
+                              </span>
+                              {category && (
+                                <span 
+                                  className="px-2 py-0.5 rounded-full text-white text-xs font-medium"
+                                  style={{ backgroundColor: category.color }}
+                                >
+                                  {category.icon}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </>
+          );
+        })()}
+      </div>
+    ) : (
+      <div className="text-center py-8 bg-gray-800 rounded-xl">
+        <div className="text-4xl mb-2">📅</div>
+        <p className="text-gray-400">Este usuario no ha creado eventos aún</p>
+      </div>
+    )}
+  </div>
+          )}
+
       </div>
     </div>
-    );
+  );
   };
 
   const loadUserProfile = async (userId) => {
   try {
     setLoadingUserProfile(true);
     
-    // Cargar eventos del usuario
-    const data = await eventService.getOrganizerEvents(userId);
-    setViewingUserEvents(data.events || []);
+    // ✅ Usar el endpoint correcto para obtener el perfil
+    const response = await userService.getUserProfile(userId);
+    setViewingUserProfile(response.user);
     
-    // Si hay eventos, usar los datos del organizador del primer evento
-    if (data.events && data.events.length > 0) {
-      setViewingUserProfile(data.events[0].organizer);
-    } else {
-      // Si no hay eventos, crear objeto básico con el userId
-      setViewingUserProfile({ _id: userId, name: 'Usuario' });
-    }
+    // ✅ Cargar eventos del usuario
+    const eventsData = await eventService.getOrganizerEvents(userId);
+    setViewingUserEvents(eventsData.events || []);
     
-    setActiveTab('userProfile');
   } catch (error) {
     console.error('Error al cargar perfil de usuario:', error);
+    alert('Error al cargar el perfil del usuario');
   } finally {
     setLoadingUserProfile(false);
   }
@@ -2063,7 +2386,7 @@ const EventsApp = () => {
             categories: response.user.categories,
             gender: response.user.gender
           };
-          
+        
           localStorage.setItem('user', JSON.stringify(updatedUser));
           setCurrentUserData(updatedUser);
           
@@ -3302,12 +3625,17 @@ const EventsApp = () => {
       >
         <Bell className="w-6 h-6" />
       </button>
+      
       <button
-        onClick={() => setActiveTab('profile')}
-        className={`p-2 transition-colors ${activeTab === 'profile' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
-      >
+        onClick={() => {
+        setViewingUserProfile(null); // ✅ Limpia el perfil que estabas viendo
+        setActiveTab('profile');
+        }}
+          className={`p-2 transition-colors ${activeTab === 'profile' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
+          >
         <User className="w-6 h-6" />
-      </button>
+        </button>
+
     </div>
   </div>
 );

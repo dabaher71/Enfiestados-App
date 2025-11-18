@@ -50,7 +50,12 @@ exports.updatePreferences = async (req, res) => {
 // Actualizar perfil
 exports.updateProfile = async (req, res) => {
   try {
-    const { name, avatar, coverImage, interests } = req.body;
+    const { name, avatar, coverImage, interests, bio } = req.body;
+    
+    // ✅ LOGS DE DEBUG
+    console.log('📝 ========== UPDATE PROFILE ==========');
+    console.log('📝 Datos recibidos:', { name, avatar, coverImage, interests, bio });
+    console.log('📝 Usuario ID:', req.user.id);
     
     // Validar nombre si se proporciona
     if (name !== undefined) {
@@ -58,6 +63,22 @@ exports.updateProfile = async (req, res) => {
         return res.status(400).json({
           success: false,
           message: 'El nombre debe tener al menos 2 caracteres'
+        });
+      }
+    }
+
+    // Validar bio si se proporciona
+    if (bio !== undefined) {
+      if (typeof bio !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'La biografía debe ser texto'
+        });
+      }
+      if (bio.length > 500) {
+        return res.status(400).json({
+          success: false,
+          message: 'La biografía no puede exceder 500 caracteres'
         });
       }
     }
@@ -75,9 +96,12 @@ exports.updateProfile = async (req, res) => {
     // Preparar datos para actualizar
     const updateData = {};
     if (name) updateData.name = name.trim();
-    if (avatar) updateData.avatar = avatar;
-    if (coverImage) updateData.coverImage = coverImage;
+    if (avatar !== undefined) updateData.avatar = avatar;
+    if (coverImage !== undefined) updateData.coverImage = coverImage;
     if (interests) updateData.interests = interests;
+    if (bio !== undefined) updateData.bio = bio.trim();
+    
+    console.log('📝 updateData preparado:', updateData);
     
     const user = await User.findByIdAndUpdate(
       req.user.id,
@@ -92,6 +116,14 @@ exports.updateProfile = async (req, res) => {
       });
     }
 
+    // ✅ LOGS DESPUÉS DE ACTUALIZAR
+    console.log('📝 Usuario actualizado en DB:', {
+      id: user._id,
+      name: user.name,
+      bio: user.bio,
+      bioLength: user.bio ? user.bio.length : 0
+    });
+
     res.status(200).json({
       success: true,
       user: {
@@ -101,12 +133,15 @@ exports.updateProfile = async (req, res) => {
         avatar: user.avatar,
         coverImage: user.coverImage,
         interests: user.interests,
+        bio: user.bio,
         location: user.location,
-        categories: user.categories
+        categories: user.categories,
+         followers: user.followers || [],     
+        following: user.following || []      
       }
     });
   } catch (error) {
-    console.error('Error al actualizar perfil:', error);
+    console.error('❌ Error al actualizar perfil:', error);
     res.status(500).json({
       success: false,
       message: 'Error al actualizar perfil',
