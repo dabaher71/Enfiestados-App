@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, MessageCircle, Share2, Bell, User, Plus, Search, Home, MapPin, Filter, ChevronLeft, Navigation } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bell, User, Calendar, Plus, Search, Home, MapPin, Filter, ChevronLeft, Navigation } from 'lucide-react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { authService } from './services/authService';
 import { userService } from './services/userService';
@@ -13,6 +13,7 @@ const EventsApp = () => {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editProfileData, setEditProfileData] = useState({
     name: '',
+    bio: '',
     interests: [],
     avatar: null,
     coverImage: null
@@ -23,6 +24,9 @@ const EventsApp = () => {
   const [activeTab, setActiveTab] = useState('feed');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [searchQuery, setSearchQuery] = useState('San José');
+  const [viewingUserProfile, setViewingUserProfile] = useState(null);
+  const [viewingUserEvents, setViewingUserEvents] = useState([]);
+  const [loadingUserProfile, setLoadingUserProfile] = useState(false);
   const [likedEvents, setLikedEvents] = useState({});
   const [userLocation, setUserLocation] = useState(null);
   const [locationPermission, setLocationPermission] = useState('pending');
@@ -68,6 +72,10 @@ const EventsApp = () => {
   const [loadingOrganizedEvents, setLoadingOrganizedEvents] = useState(false);
   const [showEditEvent, setShowEditEvent] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
+  // Estados para el perfil de usuario
+  const [userProfileTab, setUserProfileTab] = useState('eventos'); // 'eventos' o 'intereses'
+  const [isFollowingUser, setIsFollowingUser] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
   const [editEventStep, setEditEventStep] = useState(1);
 
     const { isLoaded } = useJsApiLoader({
@@ -80,6 +88,7 @@ const EventsApp = () => {
     'Puntarenas', 'Limón', 'Escazú', 'Santa Ana', 'Curridabat'
   ];
 
+  
   const availableCategories = [
     { id: 'music', name: 'Música', icon: '🎵', color: '#8B5CF6' },
     { id: 'art', name: 'Arte', icon: '🎨', color: '#EC4899' },
@@ -494,10 +503,7 @@ const EventsApp = () => {
   const renderFeed = () => {
     const handleEventClick = async (event) => {
       try {
-        // NOTA: eventService y alert() no están definidos globalmente. 
-        // Si tienes una librería de servicios y un componente Modal para alerts, funcionará.
-        // Si no, la función fallará silenciosamente. Por ahora, asumimos que eventService existe.
-        // ADVERTENCIA: Se recomienda reemplazar `alert()` con un modal de UI.
+        
         const response = await eventService.getEventById(event._id);
         setSelectedEvent(response.event);
         setShowEventDetail(true);
@@ -604,11 +610,18 @@ const EventsApp = () => {
                     <div className="p-4">
                       <h3 className="text-white text-lg font-bold mb-2">{event.title}</h3>
                       
-                      <div className="flex items-center gap-2 text-gray-400 text-sm mb-2">
-                        {/* User icono (debe estar importado) */}
-                        <User className="w-4 h-4" /> 
-                        <span>{event.organizer?.name || 'Organizador'}</span>
-                      </div>
+                        <div 
+                          className="flex items-center gap-2 text-gray-400 text-sm mb-2 hover:text-blue-400 transition-colors cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation(); // Evita que abra el detalle del evento
+                            if (event.organizer?._id) {
+                            loadUserProfile(event.organizer._id);
+                            setActiveTab('profile');}
+                            }}
+                            >
+                              <User className="w-4 h-4" /> 
+                              <span>{event.organizer?.name || 'Organizador'}</span>
+                          </div>
 
                       <div className="flex items-center gap-2 text-gray-400 text-sm mb-2">
                         <MapPin className="w-4 h-4" />
@@ -662,6 +675,267 @@ const EventsApp = () => {
       </div>
     );
   };
+
+  const renderUserProfile = () => {
+  if (!viewingUserProfile) return null;
+
+  const profileData = {
+    name: viewingUserProfile.name || 'Usuario',
+    avatar: viewingUserProfile.avatar || null,
+    coverImage: viewingUserProfile.coverImage || null,
+    bio: viewingUserProfile.bio || '',
+    eventsCount: viewingUserEvents.length,
+    followersCount: viewingUserProfile.followers?.length || 0,
+    interestsCount: viewingUserProfile.interests?.length || 0,
+    interests: viewingUserProfile.interests || [],
+  };
+
+  const handleFollowToggle = async () => {
+    try {
+      setFollowLoading(true);
+      // TODO: Implementar endpoint de follow/unfollow
+      // await userService.toggleFollow(viewingUserProfile._id);
+      setIsFollowingUser(!isFollowingUser);
+      console.log('Toggle follow:', viewingUserProfile._id);
+    } catch (error) {
+      console.error('Error al seguir/dejar de seguir:', error);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto pb-20">
+      {/* Botones superiores */}
+      <div className="absolute top-4 left-4 z-10">
+        <button 
+          onClick={() => {
+            setActiveTab('feed');
+            setViewingUserProfile(null);
+            setViewingUserEvents([]);
+            setUserProfileTab('eventos');
+          }}
+          className="bg-white/90 backdrop-blur-sm p-3 rounded-full shadow-lg"
+        >
+          <ChevronLeft className="w-5 h-5 text-gray-900" />
+        </button>
+      </div>
+
+      <div className="absolute top-4 right-4 z-10 flex gap-2">
+        <button className="bg-white/90 backdrop-blur-sm p-3 rounded-full shadow-lg">
+          <Share2 className="w-5 h-5 text-gray-900" />
+        </button>
+      </div>
+
+      {/* Cover Image */}
+      <div className="relative h-48">
+        {profileData.coverImage ? (
+          <img 
+            src={profileData.coverImage} 
+            alt="Cover" 
+            className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-blue-600 to-purple-600"></div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-gray-900/50"></div>
+      </div>
+
+      {/* Profile Content */}
+      <div className="px-6 -mt-16 relative">
+        {/* Avatar */}
+        <div className="relative inline-block">
+          {profileData.avatar ? (
+            <img 
+              src={profileData.avatar} 
+              alt="Avatar" 
+              className="w-28 h-28 rounded-full border-4 border-gray-900 object-cover bg-gray-700"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : (
+            <div className="w-28 h-28 rounded-full border-4 border-gray-900 bg-gray-700 flex items-center justify-center">
+              <User className="w-14 h-14 text-gray-500" />
+            </div>
+          )}
+        </div>
+
+        {/* Stats */}
+        <div className="flex gap-8 mt-4 mb-4">
+          <div className="text-center">
+            <div className="text-white text-2xl font-bold">{profileData.eventsCount}</div>
+            <div className="text-gray-400 text-xs">Eventos</div>
+          </div>
+          <div className="text-center">
+            <div className="text-white text-2xl font-bold">{profileData.followersCount}</div>
+            <div className="text-gray-400 text-xs">Seguidores</div>
+          </div>
+          <div className="text-center">
+            <div className="text-white text-2xl font-bold">{profileData.interestsCount}</div>
+            <div className="text-gray-400 text-xs">Intereses</div>
+          </div>
+        </div>
+
+        {/* Name */}
+        <h1 className="text-white text-2xl font-bold mb-2">{profileData.name}</h1>
+
+        {/* Bio */}
+        {profileData.bio && (
+          <p className="text-gray-400 text-sm mb-4">{profileData.bio}</p>
+        )}
+
+        {/* Follow Button */}
+        <div className="flex gap-2 mb-6">
+          <button 
+            onClick={handleFollowToggle}
+            disabled={followLoading}
+            className={`flex-1 font-semibold py-3 rounded-xl transition-all disabled:opacity-50 ${
+              isFollowingUser 
+                ? 'bg-gray-800 hover:bg-gray-700 text-white' 
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
+          >
+            {followLoading ? '...' : isFollowingUser ? 'Siguiendo' : 'Seguir'}
+          </button>
+          <button className="bg-gray-800 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-xl transition-all">
+            <MessageCircle className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-800 mb-6">
+          <button 
+            onClick={() => setUserProfileTab('eventos')}
+            className={`flex-1 text-center py-3 font-semibold transition-all ${
+              userProfileTab === 'eventos' 
+                ? 'text-white border-b-2 border-blue-600' 
+                : 'text-gray-400'
+            }`}
+          >
+            Eventos
+          </button>
+          <button 
+            onClick={() => setUserProfileTab('intereses')}
+            className={`flex-1 text-center py-3 font-semibold transition-all ${
+              userProfileTab === 'intereses' 
+                ? 'text-white border-b-2 border-blue-600' 
+                : 'text-gray-400'
+            }`}
+          >
+            Intereses
+          </button>
+        </div>
+
+        {/* Tab Content */}
+        {userProfileTab === 'eventos' && (
+          <div>
+            <h2 className="text-white font-bold text-lg mb-3">
+              Eventos organizados ({viewingUserEvents.length})
+            </h2>
+            
+            {loadingUserProfile ? (
+              <div className="text-center py-12">
+                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                <p className="text-gray-400">Cargando eventos...</p>
+              </div>
+            ) : viewingUserEvents.length > 0 ? (
+              <div className="space-y-3">
+                {viewingUserEvents.map(event => {
+                  const category = availableCategories.find(c => c.id === event.category);
+                  
+                  return (
+                    <div 
+                      key={event._id}
+                      className="bg-gray-800 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-750 transition-all"
+                      onClick={async () => {
+                        try {
+                          const response = await eventService.getEventById(event._id);
+                          setSelectedEvent(response.event);
+                          setShowEventDetail(true);
+                        } catch (error) {
+                          console.error('Error al cargar evento:', error);
+                        }
+                      }}
+                    >
+                      <div className="flex gap-3">
+                        <img 
+                          src={event.image || `https://placehold.co/600x480/4F46E5/ffffff?text=${event.title}`}
+                          alt={event.title}
+                          className="w-24 h-24 object-cover"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        <div className="flex-1 py-3 pr-3">
+                          <h3 className="text-white font-semibold mb-1">{event.title}</h3>
+                          <p className="text-gray-400 text-xs mb-1">
+                            {new Date(event.date).toLocaleDateString('es-ES', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric'
+                            })} • {event.time}
+                          </p>
+                          <div className="flex items-center gap-3 text-gray-400 text-xs">
+                            <span className="flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {event.attendees?.length || 0}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Heart className="w-3 h-3" />
+                              {event.likes?.length || 0}
+                            </span>
+                            {category && (
+                              <span 
+                                className="px-2 py-0.5 rounded-full text-white text-xs font-medium"
+                                style={{ backgroundColor: category.color }}
+                              >
+                                {category.icon}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-gray-800 rounded-xl">
+                <Calendar className="w-16 h-16 text-gray-600 mx-auto mb-3" />
+                <p className="text-gray-400">Este usuario aún no ha creado eventos</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {userProfileTab === 'intereses' && (
+          <div>
+            <h2 className="text-white font-bold text-lg mb-3">
+              Intereses ({profileData.interestsCount})
+            </h2>
+            {profileData.interests.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {profileData.interests.map((interest, index) => (
+                  <span 
+                    key={index}
+                    className="bg-gray-800 text-white px-4 py-2 rounded-full text-sm font-medium"
+                  >
+                    {interest}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-gray-800 rounded-xl">
+                <p className="text-gray-400">Este usuario no ha agregado intereses</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
   const renderCreate = () => {
     const handleEventInputChange = (field, value) => {
@@ -1217,22 +1491,27 @@ const EventsApp = () => {
           )}
         </div>
 
-        <div className="flex gap-8 mt-4 mb-4">
-          <div className="text-center">
-            <div className="text-white text-2xl font-bold">{profileData.eventsCount}</div>
-            <div className="text-gray-400 text-xs">Eventos</div>
-          </div>
-          <div className="text-center">
-            <div className="text-white text-2xl font-bold">{profileData.interestsCount}</div>
-            <div className="text-gray-400 text-xs">Intereses</div>
-          </div>
-          <div className="text-center">
-            <div className="text-white text-2xl font-bold">{profileData.attendancesCount}</div>
-            <div className="text-gray-400 text-xs">Asistencias</div>
-          </div>
-        </div>
+            <div className="flex gap-8 mt-4 mb-4">
+  <div className="text-center">
+    <div className="text-white text-2xl font-bold">{profileData.eventsCount}</div>
+    <div className="text-gray-400 text-xs">Eventos</div>
+  </div>
+  <div className="text-center">
+    <div className="text-white text-2xl font-bold">{currentUser?.followers?.length || 0}</div>
+    <div className="text-gray-400 text-xs">Seguidores</div>
+  </div>
+  <div className="text-center">
+    <div className="text-white text-2xl font-bold">{profileData.interestsCount}</div>
+    <div className="text-gray-400 text-xs">Intereses</div>
+  </div>
+            </div>
 
         <h1 className="text-white text-2xl font-bold mb-3">{profileData.name}</h1>
+
+        {/* Bio */}
+        {currentUser?.bio && (
+              <p className="text-gray-400 text-sm mb-4">{currentUser.bio}</p>
+        )}
 
         {isOwnProfile ? (
           <>
@@ -1411,6 +1690,30 @@ const EventsApp = () => {
       </div>
     </div>
     );
+  };
+
+  const loadUserProfile = async (userId) => {
+  try {
+    setLoadingUserProfile(true);
+    
+    // Cargar eventos del usuario
+    const data = await eventService.getOrganizerEvents(userId);
+    setViewingUserEvents(data.events || []);
+    
+    // Si hay eventos, usar los datos del organizador del primer evento
+    if (data.events && data.events.length > 0) {
+      setViewingUserProfile(data.events[0].organizer);
+    } else {
+      // Si no hay eventos, crear objeto básico con el userId
+      setViewingUserProfile({ _id: userId, name: 'Usuario' });
+    }
+    
+    setActiveTab('userProfile');
+  } catch (error) {
+    console.error('Error al cargar perfil de usuario:', error);
+  } finally {
+    setLoadingUserProfile(false);
+  }
   };
 
   const renderMap = () => {
@@ -1737,13 +2040,15 @@ const EventsApp = () => {
 
     const handleSaveProfile = async () => {
       try {
-        const newName = editProfileData.name?.trim() || currentUser.name;
-        const newInterests = editProfileData.interests?.length > 0 ? editProfileData.interests : (currentUser.interests || []);
+    const newName = editProfileData.name?.trim() || currentUser.name;
+    const newInterests = editProfileData.interests?.length > 0 ? editProfileData.interests : (currentUser.interests || []);
+    const newBio = editProfileData.bio !== undefined ? editProfileData.bio.trim() : (currentUser.bio || '');
 
-        const response = await userService.updateProfile({
-          name: newName,
-          interests: newInterests
-        });
+    const response = await userService.updateProfile({
+      name: newName,
+      interests: newInterests,
+      bio: newBio
+    });
         
         if (response.success && response.user) {
           const updatedUser = {
@@ -1754,6 +2059,7 @@ const EventsApp = () => {
             coverImage: response.user.coverImage,
             interests: response.user.interests || [],
             location: response.user.location,
+            bio: response.user.bio || '',
             categories: response.user.categories,
             gender: response.user.gender
           };
@@ -1883,6 +2189,29 @@ const EventsApp = () => {
                   minLength={2}
                 />
               </div>
+
+                      <div>
+                          <label className="text-white font-semibold mb-2 block">
+                               Biografía
+                                     <span className="text-gray-400 font-normal ml-2">
+                                ({editProfileData.bio?.length || currentUser?.bio?.length || 0}/500)
+                                </span>
+                          </label>
+                    <textarea
+                      defaultValue={currentUser?.bio || ''}
+                        onChange={(e) => {
+                          if (e.target.value.length <= 500) {
+                    handleEditInputChange('bio', e.target.value);
+                               }
+                           }}
+                               className="w-full bg-gray-700 text-white text-base rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-600 min-h-[100px] resize-none"
+                         placeholder="Cuéntanos sobre ti..."
+                         maxLength={500}
+                          />
+                           <p className="text-gray-500 text-xs mt-1">
+                        Escribe una breve descripción sobre ti (máximo 500 caracteres)
+                               </p>
+                          </div>
 
               <div>
                 <label className="text-white font-semibold mb-2 block">Intereses</label>
@@ -2032,25 +2361,33 @@ const EventsApp = () => {
           <div className="p-6">
             <h2 className="text-white text-2xl font-bold mb-3">{selectedEvent.title}</h2>
             
-            <div className="flex items-center gap-3 mb-4">
-              {selectedEvent.organizer?.avatar ? (
-                <img
-                  src={selectedEvent.organizer.avatar}
-                  alt={selectedEvent.organizer.name}
-                  className="w-10 h-10 rounded-full object-cover"
-                  loading="lazy"
-                  decoding="async"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center">
-                  <User className="w-5 h-5 text-gray-500" />
-                </div>
-              )}
-              <div>
-                <p className="text-white font-semibold">{selectedEvent.organizer?.name}</p>
-                <p className="text-gray-400 text-sm">Organizador</p>
-              </div>
-            </div>
+           <div 
+              className="flex items-center gap-3 mb-4 cursor-pointer hover:bg-gray-700/50 p-2 rounded-xl transition-all"
+                onClick={() => {
+                  if (selectedEvent.organizer?._id) {
+                   setShowEventDetail(false); // Cerrar el modal primero
+                    loadUserProfile(selectedEvent.organizer._id);
+                     }
+                     }}
+                        >
+                     {selectedEvent.organizer?.avatar ? (
+                         <img
+                           src={selectedEvent.organizer.avatar}
+                           alt={selectedEvent.organizer.name}
+                          className="w-10 h-10 rounded-full object-cover"
+                           loading="lazy"
+                         decoding="async"
+                         />
+                         ) : (
+    <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center">
+      <User className="w-5 h-5 text-gray-500" />
+    </div>
+  )}
+  <div>
+    <p className="text-white font-semibold">{selectedEvent.organizer?.name}</p>
+    <p className="text-gray-400 text-sm">Organizador</p>
+  </div>
+          </div>
 
             {selectedEvent.description && (
               <div className="mb-4">
@@ -2931,6 +3268,7 @@ const EventsApp = () => {
       {activeTab === 'search' && renderSearch()}
       {activeTab === 'create' && renderCreate()}
       {activeTab === 'notifications' && renderNotifications()}
+      {activeTab === 'userProfile' && renderUserProfile()}
       {activeTab === 'profile' && <div key={profileRefresh}>{renderProfile()}</div>}
     </div>
 

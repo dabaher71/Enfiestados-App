@@ -80,10 +80,18 @@ exports.createEvent = async (req, res) => {
 
 // Obtener todos los eventos
 exports.getEvents = async (req, res) => {
+     console.log('🚀 ========== GET EVENTS LLAMADO ==========');
     try {
         const { category, location, search, lat, lng, radius } = req.query;
 
         let query = {};
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Inicio del día actual
+        query.date = { $gte: today };
+
+        console.log('🔍 Fecha actual para filtro:', today);
+        console.log('🔍 Query completo:', JSON.stringify(query, null, 2));
 
         // Filtrar por categoría
         if (category) {
@@ -501,6 +509,3 @@ exports.getEventsByOrganizer = async (req, res) => {
         });
     }
 };
-
-// 🛑 IMPORTANTE: NO AGREGUES module.exports = { ... } AQUÍ AL FINAL
-// La sintaxis 'exports.functionName' ya se encarga de la exportación.
