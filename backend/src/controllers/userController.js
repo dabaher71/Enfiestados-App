@@ -50,11 +50,11 @@ exports.updatePreferences = async (req, res) => {
 // Actualizar perfil
 exports.updateProfile = async (req, res) => {
   try {
-    const { name, avatar, coverImage, interests, bio } = req.body;
+    const { name, avatar, coverImage, interests, bio, perfilPublico } = req.body;
     
     // ✅ LOGS DE DEBUG
     console.log('📝 ========== UPDATE PROFILE ==========');
-    console.log('📝 Datos recibidos:', { name, avatar, coverImage, interests, bio });
+    console.log('📝 Datos recibidos:', { name, avatar, coverImage, interests, bio, perfilPublico });
     console.log('📝 Usuario ID:', req.user.id);
     
     // Validar nombre si se proporciona
@@ -93,6 +93,16 @@ exports.updateProfile = async (req, res) => {
       }
     }
 
+    // ✅ Validar perfilPublico si se proporciona
+    if (perfilPublico !== undefined) {
+      if (typeof perfilPublico !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          message: 'perfilPublico debe ser un valor booleano'
+        });
+      }
+    }
+
     // Preparar datos para actualizar
     const updateData = {};
     if (name) updateData.name = name.trim();
@@ -100,6 +110,7 @@ exports.updateProfile = async (req, res) => {
     if (coverImage !== undefined) updateData.coverImage = coverImage;
     if (interests) updateData.interests = interests;
     if (bio !== undefined) updateData.bio = bio.trim();
+    if (perfilPublico !== undefined) updateData.perfilPublico = perfilPublico; // ✅ NUEVO
     
     console.log('📝 updateData preparado:', updateData);
     
@@ -121,7 +132,8 @@ exports.updateProfile = async (req, res) => {
       id: user._id,
       name: user.name,
       bio: user.bio,
-      bioLength: user.bio ? user.bio.length : 0
+      bioLength: user.bio ? user.bio.length : 0,
+      perfilPublico: user.perfilPublico
     });
 
     res.status(200).json({
@@ -134,9 +146,10 @@ exports.updateProfile = async (req, res) => {
         coverImage: user.coverImage,
         interests: user.interests,
         bio: user.bio,
+        perfilPublico: user.perfilPublico,  // ✅ NUEVO
         location: user.location,
         categories: user.categories,
-         followers: user.followers || [],     
+        followers: user.followers || [],     
         following: user.following || []      
       }
     });
@@ -149,6 +162,7 @@ exports.updateProfile = async (req, res) => {
     });
   }
 };
+
 
 // Obtener perfil de usuario
 exports.getUserProfile = async (req, res) => {
@@ -164,9 +178,50 @@ exports.getUserProfile = async (req, res) => {
       });
     }
 
+    // ✅ LÓGICA CORREGIDA DE PRIVACIDAD
+    const isOwnProfile = req.user && req.user.id === user._id.toString();
+    
+    // ✅ Verificar si lo sigue (convertir ambos a string para comparar)
+    const isFollowing = req.user && user.followers.some(
+      followerId => followerId.toString() === req.user.id.toString()
+    );
+
+    console.log('🔍 ========== VERIFICACIÓN DE PRIVACIDAD ==========');
+    console.log('Usuario viendo:', req.user?.id);
+    console.log('Perfil de:', user._id.toString());
+    console.log('Es su propio perfil:', isOwnProfile);
+    console.log('Lo sigue:', isFollowing);
+    console.log('Perfil es público:', user.perfilPublico);
+    console.log('Seguidores del perfil:', user.followers.map(f => f.toString()));
+
+    // Si el perfil es privado Y NO es tu perfil Y NO lo sigues
+    if (!user.perfilPublico && !isOwnProfile && !isFollowing) {
+      console.log('❌ Bloqueando acceso - Perfil privado');
+      return res.status(200).json({
+        success: true,
+        isPrivate: true,
+        user: {
+          id: user._id,
+          name: user.name,
+          avatar: user.avatar,
+          coverImage: user.coverImage,
+          bio: user.bio,
+          perfilPublico: user.perfilPublico,
+          followers: user.followers,
+          following: user.following
+        },
+        events: []
+      });
+    }
+
+    console.log('✅ Permitiendo acceso completo al perfil');
+    
+    // Si puede ver el perfil completo
     res.status(200).json({
       success: true,
-      user
+      isPrivate: false,
+      user,
+      events: user.eventsOrganized || []
     });
   } catch (error) {
     console.error('Error al obtener perfil:', error);
@@ -177,6 +232,7 @@ exports.getUserProfile = async (req, res) => {
     });
   }
 };
+
 
 // Seguir usuario
 exports.followUser = async (req, res) => {
@@ -191,7 +247,6 @@ exports.followUser = async (req, res) => {
       });
     }
 
-    // No puedes seguirte a ti mismo
     if (userToFollow._id.toString() === currentUser._id.toString()) {
       return res.status(400).json({
         success: false,
@@ -199,7 +254,6 @@ exports.followUser = async (req, res) => {
       });
     }
 
-    // Verificar si ya lo sigue
     if (currentUser.following.includes(userToFollow._id)) {
       return res.status(400).json({
         success: false,
@@ -210,8 +264,14 @@ exports.followUser = async (req, res) => {
     currentUser.following.push(userToFollow._id);
     userToFollow.followers.push(currentUser._id);
 
-    await currentUser.save();
-    await userToFollow.save();
+    // ✅ USAR Promise.all para guardar ambos al mismo tiempo
+    await Promise.all([
+      currentUser.save(),
+      userToFollow.save()
+    ]);
+
+    console.log('✅ Usuario seguido correctamente');
+    console.log('Seguidores actualizados:', userToFollow.followers.map(f => f.toString()));
 
     res.status(200).json({
       success: true,
@@ -247,8 +307,13 @@ exports.unfollowUser = async (req, res) => {
       id => id.toString() !== currentUser._id.toString()
     );
 
-    await currentUser.save();
-    await userToUnfollow.save();
+    // ✅ USAR Promise.all para guardar ambos al mismo tiempo
+    await Promise.all([
+      currentUser.save(),
+      userToUnfollow.save()
+    ]);
+
+    console.log('✅ Dejaste de seguir correctamente');
 
     res.status(200).json({
       success: true,

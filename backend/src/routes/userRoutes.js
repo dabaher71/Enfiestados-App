@@ -17,7 +17,7 @@ const router = express.Router();
 
 router.put('/preferences', protect, updatePreferences);
 router.put('/profile', protect, updateProfile);
-router.get('/:userId', getUserProfile);
+router.get('/:userId', protect, getUserProfile);
 router.post('/:userId/follow', protect, followUser);
 router.post('/:userId/unfollow', protect, unfollowUser);
 

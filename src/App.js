@@ -16,7 +16,8 @@ const EventsApp = () => {
     bio: '',
     interests: [],
     avatar: null,
-    coverImage: null
+    coverImage: null,
+    perfilPublico: undefined
   });
   const [authMode, setAuthMode] = useState('login');
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -1450,10 +1451,12 @@ const EventsApp = () => {
   // ✅ Determinar si es tu propio perfil
   const isOwnProfile = !viewingUserProfile || (loggedInUserId === profileUserId);
   
-  // ✅ Verificar si ya sigues a este usuario (comparar con ambos _id e id)
-  const isFollowing = (loggedInUser?.following || []).some(followId => 
-    followId === profileUserId || followId === profileUser?._id || followId === profileUser?.id
-  );
+  // ✅ Verificar si ya sigues a este usuario
+  const isFollowing = viewingUserProfile 
+  ? (profileUser?.followers || []).some(followerId => 
+      followerId.toString() === loggedInUserId.toString()
+    )
+  : false;
   
   const profileData = {
     name: profileUser?.name || 'Usuario',
@@ -1566,55 +1569,77 @@ const EventsApp = () => {
             </button>
           </>
         ) : (
-          <button 
-            onClick={async () => {
+         
+            <button 
+              onClick={async () => {
               try {
-                const userId = profileUser._id || profileUser.id;
-                
-                if (isFollowing) {
-                  await userService.unfollowUser(userId);
-                  
-                  const updatedUser = {...loggedInUser};
-                  updatedUser.following = (updatedUser.following || []).filter(id => id !== userId);
-                  localStorage.setItem('user', JSON.stringify(updatedUser));
-                  setCurrentUserData({...updatedUser});
-                  
-                  if (viewingUserProfile) {
-                    const updatedProfile = {...viewingUserProfile};
-                    updatedProfile.followers = (updatedProfile.followers || []).filter(id => id !== (loggedInUser._id || loggedInUser.id));
-                    setViewingUserProfile(updatedProfile);
-                  }
-                  
-                  alert('✅ Dejaste de seguir a ' + profileUser.name);
-                } else {
-                  await userService.followUser(userId);
-                  
-                  const updatedUser = {...loggedInUser};
-                  updatedUser.following = [...(updatedUser.following || []), userId];
-                  localStorage.setItem('user', JSON.stringify(updatedUser));
-                  setCurrentUserData({...updatedUser});
-                  
-                  if (viewingUserProfile) {
-                    const updatedProfile = {...viewingUserProfile};
-                    updatedProfile.followers = [...(updatedProfile.followers || []), (loggedInUser._id || loggedInUser.id)];
-                    setViewingUserProfile(updatedProfile);
-                  }
-                  
-                  alert('✅ Ahora sigues a ' + profileUser.name);
-                }
-              } catch (error) {
-                console.error('Error al seguir/dejar de seguir:', error);
-                alert('❌ Error: ' + (error.response?.data?.message || error.message));
-              }
-            }}
-            className={`w-full font-semibold py-3 rounded-xl transition-all mb-6 ${
-              isFollowing 
-                ? 'bg-gray-800 hover:bg-gray-700 text-white' 
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
-          >
-            {isFollowing ? 'Siguiendo' : 'Seguir'}
-          </button>
+      const userId = profileUser._id || profileUser.id;
+      
+      if (isFollowing) {
+        // Dejar de seguir
+        await userService.unfollowUser(userId);
+        
+        const updatedUser = {...loggedInUser};
+        updatedUser.following = (updatedUser.following || []).filter(id => id !== userId);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setCurrentUserData({...updatedUser});
+        
+        // ✅ ACTUALIZAR MANUALMENTE el perfil para mostrar privado inmediatamente
+        if (!profileUser.perfilPublico) {
+          setViewingUserProfile({
+            ...profileUser,
+            isPrivate: true,
+            followers: (profileUser.followers || []).filter(f => f.toString() !== loggedInUserId.toString())
+          });
+          setViewingUserEvents([]);
+        } else {
+          // Si es público, solo actualizar seguidores
+          setViewingUserProfile({
+            ...profileUser,
+            followers: (profileUser.followers || []).filter(f => f.toString() !== loggedInUserId.toString())
+          });
+        }
+        
+        alert('✅ Dejaste de seguir a ' + profileUser.name);
+      } else {
+        // Seguir
+        await userService.followUser(userId);
+        
+        const updatedUser = {...loggedInUser};
+        updatedUser.following = [...(updatedUser.following || []), userId];
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setCurrentUserData({...updatedUser});
+        
+        // ✅ ACTUALIZAR MANUALMENTE - Si era privado, recargar eventos
+        if (!profileUser.perfilPublico) {
+          // Esperar un poco y luego recargar
+          setTimeout(async () => {
+            await loadUserProfile(userId);
+          }, 500);
+        } else {
+          // Si es público, solo actualizar seguidores
+          setViewingUserProfile({
+            ...profileUser,
+            followers: [...(profileUser.followers || []), loggedInUserId]
+          });
+        }
+        
+        alert('✅ Ahora sigues a ' + profileUser.name);
+      }
+    } catch (error) {
+      console.error('Error al seguir/dejar de seguir:', error);
+      alert('❌ Error: ' + (error.response?.data?.message || error.message));
+    }
+  }}
+  className={`w-full font-semibold py-3 rounded-xl transition-all mb-6 ${
+    isFollowing 
+      ? 'bg-gray-800 hover:bg-gray-700 text-white' 
+      : 'bg-blue-600 hover:bg-blue-700 text-white'
+  }`}
+>
+  {isFollowing ? 'Siguiendo' : 'Seguir'}
+              </button>
+
         )}
 
         <div className="mb-6">
@@ -1852,7 +1877,7 @@ const EventsApp = () => {
           </div>
         )}
 
-        {!isOwnProfile && (
+       {!isOwnProfile && (
   <div className="mb-6">
     <h2 className="text-white font-bold text-lg mb-3">
       Eventos organizados ({viewingUserEvents?.length || 0})
@@ -1863,17 +1888,23 @@ const EventsApp = () => {
         <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
         <p className="text-gray-400">Cargando eventos...</p>
       </div>
+    ) : profileUser?.isPrivate && (!viewingUserEvents || viewingUserEvents.length === 0) ? (
+      <div className="text-center py-12 bg-gray-800 rounded-xl">
+        <div className="text-6xl mb-4">🔒</div>
+        <h3 className="text-white text-xl font-semibold mb-2">Perfil privado</h3>
+        <p className="text-gray-400 mb-4">
+          Este usuario tiene su perfil privado. Síguelo para ver sus eventos.
+        </p>
+      </div>
     ) : viewingUserEvents && viewingUserEvents.length > 0 ? (
       <div className="space-y-3">
         {(() => {
-          // ✅ Separar eventos en actuales y finalizados
           const now = new Date();
           const upcomingEvents = viewingUserEvents.filter(event => new Date(event.date) >= now);
           const pastEvents = viewingUserEvents.filter(event => new Date(event.date) < now);
           
           return (
             <>
-              {/* Eventos actuales/futuros */}
               {upcomingEvents.map(event => {
                 const category = availableCategories.find(c => c.id === event.category);
                 
@@ -1932,7 +1963,6 @@ const EventsApp = () => {
                 );
               })}
               
-              {/* ✅ Separador de eventos finalizados */}
               {pastEvents.length > 0 && (
                 <>
                   <div className="flex items-center gap-3 my-6">
@@ -1941,7 +1971,6 @@ const EventsApp = () => {
                     <div className="flex-1 h-px bg-gray-700"></div>
                   </div>
                   
-                  {/* Eventos pasados */}
                   {pastEvents.map(event => {
                     const category = availableCategories.find(c => c.id === event.category);
                     
@@ -2019,25 +2048,40 @@ const EventsApp = () => {
   );
   };
 
+ 
   const loadUserProfile = async (userId) => {
   try {
     setLoadingUserProfile(true);
-    
-    // ✅ Usar el endpoint correcto para obtener el perfil
     const response = await userService.getUserProfile(userId);
-    setViewingUserProfile(response.user);
     
-    // ✅ Cargar eventos del usuario
-    const eventsData = await eventService.getOrganizerEvents(userId);
-    setViewingUserEvents(eventsData.events || []);
+    console.log('📥 ========== RESPUESTA getUserProfile ==========');
+    console.log('📥 isPrivate:', response.isPrivate);
+    console.log('📥 user:', response.user);
+    console.log('📥 events:', response.events);
+    console.log('📥 Cantidad de eventos:', response.events?.length);
     
+    // ✅ Manejar perfil privado
+    if (response.isPrivate) {
+      setViewingUserProfile({
+        ...response.user,
+        isPrivate: true
+      });
+      setViewingUserEvents([]);
+    } else {
+      setViewingUserProfile({
+        ...response.user,
+        isPrivate: false  // ✅ IMPORTANTE: Marcar explícitamente como NO privado
+      });
+      setViewingUserEvents(response.events || []);
+      console.log('✅ viewingUserEvents actualizado con:', response.events?.length, 'eventos');
+    }
   } catch (error) {
-    console.error('Error al cargar perfil de usuario:', error);
-    alert('Error al cargar el perfil del usuario');
+    console.error('Error al cargar perfil:', error);
+    alert('Error al cargar el perfil');
   } finally {
     setLoadingUserProfile(false);
   }
-  };
+      };
 
   const renderMap = () => {
     if (!isLoaded) {
@@ -2366,11 +2410,12 @@ const EventsApp = () => {
     const newName = editProfileData.name?.trim() || currentUser.name;
     const newInterests = editProfileData.interests?.length > 0 ? editProfileData.interests : (currentUser.interests || []);
     const newBio = editProfileData.bio !== undefined ? editProfileData.bio.trim() : (currentUser.bio || '');
-
+    const newPerfilPublico = editProfileData.perfilPublico !== undefined ? editProfileData.perfilPublico : (currentUser.perfilPublico !== undefined ? currentUser.perfilPublico : true);
     const response = await userService.updateProfile({
       name: newName,
       interests: newInterests,
-      bio: newBio
+      bio: newBio,
+      perfilPublico: newPerfilPublico
     });
         
         if (response.success && response.user) {
@@ -2383,6 +2428,7 @@ const EventsApp = () => {
             interests: response.user.interests || [],
             location: response.user.location,
             bio: response.user.bio || '',
+            perfilPublico: response.user.perfilPublico !== undefined ? response.user.perfilPublico : true,
             categories: response.user.categories,
             gender: response.user.gender
           };
@@ -2561,12 +2607,61 @@ const EventsApp = () => {
                 </div>
               </div>
 
+                    {/* ✅ Toggle de Perfil Privado - Lógica invertida correctamente */}
+                    <div>
+  <label className="text-white font-semibold mb-3 block">Privacidad del perfil</label>
+  <div className="bg-gray-700 rounded-xl p-4">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="text-2xl">🔒</div>
+        <div>
+          <p className="text-white font-medium">Perfil privado</p>
+          <p className="text-gray-400 text-sm">
+            Solo tus seguidores podrán ver tus eventos y estadísticas
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          const currentValue = editProfileData.perfilPublico !== undefined 
+            ? editProfileData.perfilPublico 
+            : (currentUser?.perfilPublico !== undefined ? currentUser.perfilPublico : true);
+          
+          handleEditInputChange('perfilPublico', !currentValue);
+        }}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+          (editProfileData.perfilPublico !== undefined 
+            ? !editProfileData.perfilPublico  // ✅ INVERTIDO con !
+            : !(currentUser?.perfilPublico !== undefined ? currentUser.perfilPublico : true))
+            ? 'bg-blue-600' 
+            : 'bg-gray-600'
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+            (editProfileData.perfilPublico !== undefined 
+              ? !editProfileData.perfilPublico  // ✅ INVERTIDO con !
+              : !(currentUser?.perfilPublico !== undefined ? currentUser.perfilPublico : true))
+              ? 'translate-x-6' 
+              : 'translate-x-1'
+          }`}
+        />
+      </button>
+    </div>
+  </div>
+                </div>
+             
+
+              {/* Botón Guardar Cambios - YA LO TIENES */}
               <button
                 onClick={handleSaveProfile}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all"
               >
                 Guardar Cambios
               </button>
+
             </div>
           </div>
         </div>
