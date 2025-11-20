@@ -84,8 +84,12 @@ exports.register = async (req, res) => {
         email: user.email,
         gender: user.gender,
         avatar: user.avatar,
+        bio: user.bio,
         coverImage: user.coverImage,
+        followers: user.followers || [],      
+        following: user.following || [],
         interests: user.interests || []
+        
       }
     });
   } catch (error) {
@@ -159,9 +163,12 @@ exports.login = async (req, res) => {
         name: user.name,
         email: user.email,
         avatar: user.avatar,
+        bio: user.bio,
         coverImage: user.coverImage,
         location: user.location,
         categories: user.categories,
+        followers: user.followers || [],     
+        following: user.following || [],    
         interests: user.interests || []
       }
     });

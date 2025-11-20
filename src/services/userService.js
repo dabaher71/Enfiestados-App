@@ -55,15 +55,47 @@ export const userService = {
     return response.data;
   },
 
-  // ✅ NUEVA: Eliminar avatar
+  //  Eliminar avatar
   removeAvatar: async () => {
     const response = await API.delete('/users/remove-avatar');
     return response.data;
   },
 
-  // ✅ NUEVA: Eliminar imagen de portada
+  //  Eliminar imagen de portada
   removeCoverImage: async () => {
     const response = await API.delete('/users/remove-cover');
     return response.data;
+  },
+
+  //  Solicitar seguir (para perfiles privados)
+  requestFollow: async (userId) => {
+    const response = await API.post(`/users/${userId}/request-follow`);
+    return response.data;
+  },
+
+  //  Aceptar solicitud de seguimiento
+  acceptFollowRequest: async (requesterId) => {
+    const response = await API.post(`/users/${requesterId}/accept-follow`);
+    return response.data;
+  },
+
+  //  Rechazar solicitud de seguimiento
+  rejectFollowRequest: async (requesterId) => {
+    const response = await API.post(`/users/${requesterId}/reject-follow`);
+    return response.data;
+  },
+
+  //  Cancelar solicitud de seguimiento
+  cancelFollowRequest: async (userId) => {
+    const response = await API.post(`/users/${userId}/cancel-follow-request`);
+    return response.data;
+  },
+
+  //  Obtener solicitudes pendientes
+  getFollowRequests: async () => {
+    const response = await API.get('/users/follow-requests');
+    return response.data;
   }
+
 };
+

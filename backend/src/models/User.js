@@ -63,8 +63,13 @@ const userSchema = new mongoose.Schema({
   following: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }],  // ← AGREGUÉ ESTA COMA QUE FALTABA
+  }],  
   
+  followRequests: [{
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'User'
+  }],
+
   perfilPublico: { 
     type: Boolean, 
     default: true 

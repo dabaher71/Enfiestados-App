@@ -178,12 +178,15 @@ exports.getUserProfile = async (req, res) => {
       });
     }
 
-    // ✅ LÓGICA CORREGIDA DE PRIVACIDAD
     const isOwnProfile = req.user && req.user.id === user._id.toString();
     
-    // ✅ Verificar si lo sigue (convertir ambos a string para comparar)
     const isFollowing = req.user && user.followers.some(
       followerId => followerId.toString() === req.user.id.toString()
+    );
+
+    // ✅ NUEVO: Verificar si hay solicitud pendiente
+    const hasPendingRequest = req.user && user.followRequests.some(
+      requesterId => requesterId.toString() === req.user.id.toString()
     );
 
     console.log('🔍 ========== VERIFICACIÓN DE PRIVACIDAD ==========');
@@ -191,15 +194,16 @@ exports.getUserProfile = async (req, res) => {
     console.log('Perfil de:', user._id.toString());
     console.log('Es su propio perfil:', isOwnProfile);
     console.log('Lo sigue:', isFollowing);
+    console.log('Tiene solicitud pendiente:', hasPendingRequest); // ✅ NUEVO
     console.log('Perfil es público:', user.perfilPublico);
     console.log('Seguidores del perfil:', user.followers.map(f => f.toString()));
 
-    // Si el perfil es privado Y NO es tu perfil Y NO lo sigues
     if (!user.perfilPublico && !isOwnProfile && !isFollowing) {
       console.log('❌ Bloqueando acceso - Perfil privado');
       return res.status(200).json({
         success: true,
         isPrivate: true,
+        hasPendingRequest, // ✅ NUEVO
         user: {
           id: user._id,
           name: user.name,
@@ -208,7 +212,8 @@ exports.getUserProfile = async (req, res) => {
           bio: user.bio,
           perfilPublico: user.perfilPublico,
           followers: user.followers,
-          following: user.following
+          following: user.following,
+          hasPendingRequest // ✅ NUEVO
         },
         events: []
       });
@@ -216,11 +221,14 @@ exports.getUserProfile = async (req, res) => {
 
     console.log('✅ Permitiendo acceso completo al perfil');
     
-    // Si puede ver el perfil completo
     res.status(200).json({
       success: true,
       isPrivate: false,
-      user,
+      hasPendingRequest, // ✅ NUEVO
+      user: {
+        ...user.toObject(),
+        hasPendingRequest // ✅ NUEVO
+      },
       events: user.eventsOrganized || []
     });
   } catch (error) {
@@ -232,7 +240,6 @@ exports.getUserProfile = async (req, res) => {
     });
   }
 };
-
 
 // Seguir usuario
 exports.followUser = async (req, res) => {
@@ -328,6 +335,215 @@ exports.unfollowUser = async (req, res) => {
     });
   }
 };
+
+// ✅ Solicitar seguir (para perfiles privados)
+exports.requestFollow = async (req, res) => {
+  try {
+    const userToFollow = await User.findById(req.params.userId);
+    const currentUser = await User.findById(req.user.id);
+
+    if (!userToFollow) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    if (userToFollow._id.toString() === currentUser._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'No puedes enviarte solicitud a ti mismo'
+      });
+    }
+
+    // Verificar si ya lo sigue
+    if (currentUser.following.includes(userToFollow._id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ya sigues a este usuario'
+      });
+    }
+
+    // Verificar si ya envió solicitud
+    if (userToFollow.followRequests.includes(currentUser._id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ya enviaste una solicitud a este usuario'
+      });
+    }
+
+    // Agregar solicitud
+    userToFollow.followRequests.push(currentUser._id);
+    await userToFollow.save();
+
+    console.log('✅ Solicitud de seguimiento enviada');
+
+    res.status(200).json({
+      success: true,
+      message: 'Solicitud enviada'
+    });
+  } catch (error) {
+    console.error('Error al enviar solicitud:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al enviar solicitud',
+      error: error.message
+    });
+  }
+};
+
+// ✅ Aceptar solicitud de seguimiento
+exports.acceptFollowRequest = async (req, res) => {
+  try {
+    const requesterId = req.params.requesterId;
+    const currentUser = await User.findById(req.user.id);
+    const requester = await User.findById(requesterId);
+
+    if (!requester) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    // Verificar que la solicitud existe
+    if (!currentUser.followRequests.includes(requesterId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'No hay solicitud de este usuario'
+      });
+    }
+
+    // Remover de solicitudes
+    currentUser.followRequests = currentUser.followRequests.filter(
+      id => id.toString() !== requesterId
+    );
+
+    // Agregar a seguidores/siguiendo
+    currentUser.followers.push(requesterId);
+    requester.following.push(currentUser._id);
+
+    await Promise.all([
+      currentUser.save(),
+      requester.save()
+    ]);
+
+    console.log('✅ Solicitud aceptada');
+
+    res.status(200).json({
+      success: true,
+      message: 'Solicitud aceptada'
+    });
+  } catch (error) {
+    console.error('Error al aceptar solicitud:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al aceptar solicitud',
+      error: error.message
+    });
+  }
+};
+
+// ✅ Rechazar solicitud de seguimiento
+exports.rejectFollowRequest = async (req, res) => {
+  try {
+    const requesterId = req.params.requesterId;
+    const currentUser = await User.findById(req.user.id);
+
+    if (!currentUser.followRequests.includes(requesterId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'No hay solicitud de este usuario'
+      });
+    }
+
+    // Remover de solicitudes
+    currentUser.followRequests = currentUser.followRequests.filter(
+      id => id.toString() !== requesterId
+    );
+
+    await currentUser.save();
+
+    console.log('✅ Solicitud rechazada');
+
+    res.status(200).json({
+      success: true,
+      message: 'Solicitud rechazada'
+    });
+  } catch (error) {
+    console.error('Error al rechazar solicitud:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al rechazar solicitud',
+      error: error.message
+    });
+  }
+};
+
+// ✅ Cancelar solicitud de seguimiento
+exports.cancelFollowRequest = async (req, res) => {
+  try {
+    const userToUnfollow = await User.findById(req.params.userId);
+    const currentUser = await User.findById(req.user.id);
+
+    if (!userToUnfollow) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    // Verificar que la solicitud existe
+    if (!userToUnfollow.followRequests.includes(currentUser._id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'No hay solicitud pendiente'
+      });
+    }
+
+    // Remover solicitud
+    userToUnfollow.followRequests = userToUnfollow.followRequests.filter(
+      id => id.toString() !== currentUser._id.toString()
+    );
+
+    await userToUnfollow.save();
+
+    console.log('✅ Solicitud cancelada');
+
+    res.status(200).json({
+      success: true,
+      message: 'Solicitud cancelada'
+    });
+  } catch (error) {
+    console.error('Error al cancelar solicitud:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al cancelar solicitud',
+      error: error.message
+    });
+  }
+};
+
+// ✅ Obtener solicitudes pendientes
+exports.getFollowRequests = async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.user.id)
+      .populate('followRequests', 'name avatar email');
+
+    res.status(200).json({
+      success: true,
+      requests: currentUser.followRequests || []
+    });
+  } catch (error) {
+    console.error('Error al obtener solicitudes:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener solicitudes',
+      error: error.message
+    });
+  }
+};
+
 
 // Subir avatar
 exports.uploadAvatar = async (req, res) => {

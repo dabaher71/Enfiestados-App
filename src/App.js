@@ -23,6 +23,7 @@ const EventsApp = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [activeTab, setActiveTab] = useState('feed');
+  const [followRequests, setFollowRequests] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [searchQuery, setSearchQuery] = useState('San José');
   const [viewingUserProfile, setViewingUserProfile] = useState(null);
@@ -1570,13 +1571,23 @@ const EventsApp = () => {
           </>
         ) : (
          
-            <button 
-              onClick={async () => {
-              try {
+          <button 
+  onClick={async () => {
+    try {
       const userId = profileUser._id || profileUser.id;
       
       if (isFollowing) {
         // Dejar de seguir
+        if (!profileUser.perfilPublico) {
+          const confirmed = window.confirm(
+            `⚠️ Este es un perfil privado.\n\nSi dejas de seguir a ${profileUser.name}, tendrás que enviar otra solicitud y esperar su aprobación para volver a ver su contenido.\n\n¿Estás seguro?`
+          );
+          
+          if (!confirmed) {
+            return;
+          }
+        }
+        
         await userService.unfollowUser(userId);
         
         const updatedUser = {...loggedInUser};
@@ -1584,7 +1595,6 @@ const EventsApp = () => {
         localStorage.setItem('user', JSON.stringify(updatedUser));
         setCurrentUserData({...updatedUser});
         
-        // ✅ ACTUALIZAR MANUALMENTE el perfil para mostrar privado inmediatamente
         if (!profileUser.perfilPublico) {
           setViewingUserProfile({
             ...profileUser,
@@ -1593,7 +1603,6 @@ const EventsApp = () => {
           });
           setViewingUserEvents([]);
         } else {
-          // Si es público, solo actualizar seguidores
           setViewingUserProfile({
             ...profileUser,
             followers: (profileUser.followers || []).filter(f => f.toString() !== loggedInUserId.toString())
@@ -1601,30 +1610,49 @@ const EventsApp = () => {
         }
         
         alert('✅ Dejaste de seguir a ' + profileUser.name);
+      } else if (profileUser?.hasPendingRequest) {
+        // ✅ NUEVO: Cancelar solicitud pendiente
+        const confirmed = window.confirm(
+          `¿Estás seguro de que quieres cancelar la solicitud de seguimiento a ${profileUser.name}?`
+        );
+        
+        if (!confirmed) {
+          return;
+        }
+        
+        await userService.cancelFollowRequest(userId);
+        
+        setViewingUserProfile({
+          ...profileUser,
+          hasPendingRequest: false
+        });
+        
+        alert('✅ Solicitud cancelada');
       } else {
-        // Seguir
-        await userService.followUser(userId);
-        
-        const updatedUser = {...loggedInUser};
-        updatedUser.following = [...(updatedUser.following || []), userId];
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        setCurrentUserData({...updatedUser});
-        
-        // ✅ ACTUALIZAR MANUALMENTE - Si era privado, recargar eventos
+        // Seguir o solicitar seguir
         if (!profileUser.perfilPublico) {
-          // Esperar un poco y luego recargar
+          await userService.requestFollow(userId);
+          
+          setViewingUserProfile({
+            ...profileUser,
+            hasPendingRequest: true
+          });
+          
+          alert('📩 Solicitud enviada a ' + profileUser.name);
+        } else {
+          await userService.followUser(userId);
+          
+          const updatedUser = {...loggedInUser};
+          updatedUser.following = [...(updatedUser.following || []), userId];
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+          setCurrentUserData({...updatedUser});
+          
           setTimeout(async () => {
             await loadUserProfile(userId);
           }, 500);
-        } else {
-          // Si es público, solo actualizar seguidores
-          setViewingUserProfile({
-            ...profileUser,
-            followers: [...(profileUser.followers || []), loggedInUserId]
-          });
+          
+          alert('✅ Ahora sigues a ' + profileUser.name);
         }
-        
-        alert('✅ Ahora sigues a ' + profileUser.name);
       }
     } catch (error) {
       console.error('Error al seguir/dejar de seguir:', error);
@@ -1634,11 +1662,18 @@ const EventsApp = () => {
   className={`w-full font-semibold py-3 rounded-xl transition-all mb-6 ${
     isFollowing 
       ? 'bg-gray-800 hover:bg-gray-700 text-white' 
+      : profileUser?.hasPendingRequest
+      ? 'bg-yellow-600 hover:bg-yellow-700 text-white cursor-pointer'
       : 'bg-blue-600 hover:bg-blue-700 text-white'
   }`}
 >
-  {isFollowing ? 'Siguiendo' : 'Seguir'}
-              </button>
+  {isFollowing 
+    ? 'Siguiendo' 
+    : profileUser?.hasPendingRequest 
+    ? '📩 Cancelar solicitud' 
+    : (!profileUser.perfilPublico ? 'Solicitar seguir' : 'Seguir')
+  }
+            </button>
 
         )}
 
@@ -2081,7 +2116,7 @@ const EventsApp = () => {
   } finally {
     setLoadingUserProfile(false);
   }
-      };
+    };
 
   const renderMap = () => {
     if (!isLoaded) {
@@ -3662,6 +3697,26 @@ const EventsApp = () => {
   }
   };
 
+  const handleTabChange = async (tab) => {
+    setActiveTab(tab);
+    
+    // ✅ Cargar solicitudes cuando abre notificaciones
+    if (tab === 'notifications') {
+      try {
+        const response = await userService.getFollowRequests();
+        console.log('📩 Solicitudes cargadas:', response.requests);
+        setFollowRequests(response.requests || []);
+      } catch (error) {
+        console.error('Error al cargar solicitudes:', error);
+      }
+    }
+    
+    // ✅ Limpiar perfil al cambiar a profile
+    if (tab === 'profile') {
+      setViewingUserProfile(null);
+    }
+  };
+
   if (showOnboarding) {
     return (
       <div className="w-full h-screen bg-gray-900 flex flex-col max-w-md mx-auto">
@@ -3678,6 +3733,8 @@ const EventsApp = () => {
     );
   }
 
+  
+
   return (
   <div className="w-full h-screen bg-gray-900 flex flex-col max-w-md mx-auto overflow-hidden relative">
     {/* Contenido principal con scroll */}
@@ -3685,7 +3742,78 @@ const EventsApp = () => {
       {activeTab === 'feed' && renderFeed()}
       {activeTab === 'search' && renderSearch()}
       {activeTab === 'create' && renderCreate()}
-      {activeTab === 'notifications' && renderNotifications()}
+      {activeTab === 'notifications' && (
+  <div className="max-w-2xl mx-auto p-4">
+    <h1 className="text-white text-2xl font-bold mb-4">Notificaciones</h1>
+    
+    {/* Solicitudes de seguimiento */}
+    {followRequests.length > 0 ? (
+      <div className="space-y-3">
+        {followRequests.map(requester => (
+          <div key={requester._id} className="bg-gray-800 rounded-xl p-4 flex items-center gap-3">
+            <img 
+              src={requester.avatar || 'https://via.placeholder.com/50'} 
+              alt={requester.name}
+              className="w-12 h-12 rounded-full object-cover"
+            />
+            <div className="flex-1">
+              <p className="text-white font-semibold">{requester.name}</p>
+              <p className="text-gray-400 text-sm">Quiere seguirte</p>
+            </div>
+            <div className="flex gap-2">
+              
+              <button
+  onClick={async () => {
+    try {
+      await userService.acceptFollowRequest(requester._id);
+      setFollowRequests(followRequests.filter(r => r._id !== requester._id));
+      
+      // ✅ NUEVO: Actualizar los contadores del usuario actual
+      const currentUser = authService.getCurrentUser();
+      if (currentUser) {
+        currentUser.followers = [...(currentUser.followers || []), requester._id];
+        localStorage.setItem('user', JSON.stringify(currentUser));
+        setUser(currentUser); // Actualizar el estado
+      }
+      
+      alert('✅ Solicitud aceptada');
+    } catch (error) {
+      console.error('Error al aceptar:', error);
+      alert('❌ Error al aceptar solicitud');
+    }
+  }}
+  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+>
+  Aceptar
+                </button>
+
+              <button
+                onClick={async () => {
+                  try {
+                    await userService.rejectFollowRequest(requester._id);
+                    setFollowRequests(followRequests.filter(r => r._id !== requester._id));
+                    alert('❌ Solicitud rechazada');
+                  } catch (error) {
+                    console.error('Error al rechazar:', error);
+                    alert('❌ Error al rechazar solicitud');
+                  }
+                }}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+              >
+                Rechazar
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <div className="text-center py-12 bg-gray-800 rounded-xl">
+        <Bell className="w-16 h-16 text-gray-600 mx-auto mb-3" />
+        <p className="text-gray-400">No tienes notificaciones</p>
+      </div>
+    )}
+  </div>
+      )}
       {activeTab === 'userProfile' && renderUserProfile()}
       {activeTab === 'profile' && <div key={profileRefresh}>{renderProfile()}</div>}
     </div>
@@ -3694,44 +3822,45 @@ const EventsApp = () => {
     {renderEditProfileModal()}
     {renderEventDetailModal()}
     {renderEditEventModal()} 
-    {/* Barra de navegación inferior - ARREGLADA */}
+    {/* Barra de navegación inferior  */}
     <div className="bg-gray-950 border-t border-gray-800 px-6 py-3 flex justify-around items-center sticky bottom-0 z-50 safe-area-bottom">
-      <button
-        onClick={() => setActiveTab('feed')}
-        className={`p-2 transition-colors ${activeTab === 'feed' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
-      >
-        <Home className="w-6 h-6" />
-      </button>
-      <button
-        onClick={() => setActiveTab('search')}
-        className={`p-2 transition-colors ${activeTab === 'search' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
-      >
-        <Search className="w-6 h-6" />
-      </button>
-      <button
-        onClick={() => setActiveTab('create')}
-        className={`p-2 transition-colors ${activeTab === 'create' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
-      >
-        <Plus className="w-7 h-7" />
-      </button>
-      <button
-        onClick={() => setActiveTab('notifications')}
-        className={`p-2 transition-colors ${activeTab === 'notifications' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
-      >
-        <Bell className="w-6 h-6" />
-      </button>
-      
-      <button
-        onClick={() => {
-        setViewingUserProfile(null); // ✅ Limpia el perfil que estabas viendo
-        setActiveTab('profile');
-        }}
-          className={`p-2 transition-colors ${activeTab === 'profile' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
-          >
-        <User className="w-6 h-6" />
-        </button>
-
-    </div>
+  <button
+    onClick={() => handleTabChange('feed')}
+    className={`p-2 transition-colors ${activeTab === 'feed' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
+  >
+    <Home className="w-6 h-6" />
+  </button>
+  <button
+    onClick={() => handleTabChange('search')}
+    className={`p-2 transition-colors ${activeTab === 'search' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
+  >
+    <Search className="w-6 h-6" />
+  </button>
+  <button
+    onClick={() => handleTabChange('create')}
+    className={`p-2 transition-colors ${activeTab === 'create' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
+  >
+    <Plus className="w-7 h-7" />
+  </button>
+  <button
+    onClick={() => handleTabChange('notifications')}
+    className={`p-2 relative transition-colors ${activeTab === 'notifications' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
+  >
+    <Bell className="w-6 h-6" />
+    {/* ✅ Badge para mostrar cantidad de solicitudes */}
+    {followRequests.length > 0 && (
+      <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+        {followRequests.length}
+      </span>
+    )}
+  </button>
+  <button
+    onClick={() => handleTabChange('profile')}
+    className={`p-2 transition-colors ${activeTab === 'profile' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
+  >
+    <User className="w-6 h-6" />
+  </button>
+      </div>
   </div>
 );
 };
