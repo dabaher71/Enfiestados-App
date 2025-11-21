@@ -4,6 +4,7 @@ import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-map
 import { authService } from './services/authService';
 import { userService } from './services/userService';
 import { eventService } from './services/eventService';
+import { notificationService } from './services/notificationService';
 
 const EventsApp = () => {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
@@ -78,6 +79,7 @@ const EventsApp = () => {
   const [isFollowingUser, setIsFollowingUser] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [editEventStep, setEditEventStep] = useState(1);
+  const [activityNotifications, setActivityNotifications] = useState([]);
 
     const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -86,7 +88,7 @@ const EventsApp = () => {
 
    const availableLocations = [
     'San José', 'Alajuela', 'Cartago', 'Heredia', 'Guanacaste', 
-    'Puntarenas', 'Limón', 'Escazú', 'Santa Ana', 'Curridabat'
+    'Puntarenas', 'Limón'
   ];
 
   
@@ -3698,23 +3700,30 @@ const EventsApp = () => {
   };
 
   const handleTabChange = async (tab) => {
-    setActiveTab(tab);
-    
-    // ✅ Cargar solicitudes cuando abre notificaciones
-    if (tab === 'notifications') {
-      try {
-        const response = await userService.getFollowRequests();
-        console.log('📩 Solicitudes cargadas:', response.requests);
-        setFollowRequests(response.requests || []);
-      } catch (error) {
-        console.error('Error al cargar solicitudes:', error);
-      }
+  setActiveTab(tab);
+  
+  // ✅ Cargar notificaciones cuando abre la pestaña
+  if (tab === 'notifications') {
+    try {
+      // Cargar solicitudes de seguimiento
+      const followResponse = await userService.getFollowRequests();
+      setFollowRequests(followResponse.requests || []);
+      
+      // ✅ NUEVO: Cargar notificaciones de actividad
+      const notifResponse = await notificationService.getNotifications();
+      setActivityNotifications(notifResponse.notifications || []);
+      
+      console.log('📩 Solicitudes cargadas:', followResponse.requests?.length || 0);
+      console.log('🔔 Notificaciones cargadas:', notifResponse.notifications?.length || 0);
+    } catch (error) {
+      console.error('Error al cargar notificaciones:', error);
     }
-    
-    // ✅ Limpiar perfil al cambiar a profile
-    if (tab === 'profile') {
-      setViewingUserProfile(null);
-    }
+  }
+  
+  // ✅ Limpiar perfil al cambiar a profile
+  if (tab === 'profile') {
+    setViewingUserProfile(null);
+  }
   };
 
   if (showOnboarding) {
@@ -3742,78 +3751,199 @@ const EventsApp = () => {
       {activeTab === 'feed' && renderFeed()}
       {activeTab === 'search' && renderSearch()}
       {activeTab === 'create' && renderCreate()}
-      {activeTab === 'notifications' && (
+     {activeTab === 'notifications' && (
   <div className="max-w-2xl mx-auto p-4">
-    <h1 className="text-white text-2xl font-bold mb-4">Notificaciones</h1>
+    <div className="flex items-center justify-between mb-4">
+      <h1 className="text-white text-2xl font-bold">Notificaciones</h1>
+      {activityNotifications.some(n => !n.read) && (
+        <button
+          onClick={async () => {
+            try {
+              await notificationService.markAllAsRead();
+              setActivityNotifications(activityNotifications.map(n => ({ ...n, read: true })));
+            } catch (error) {
+              console.error('Error al marcar todas:', error);
+            }
+          }}
+          className="text-blue-500 text-sm font-medium hover:text-blue-400"
+        >
+          Marcar todas como leídas
+        </button>
+      )}
+    </div>
     
-    {/* Solicitudes de seguimiento */}
-    {followRequests.length > 0 ? (
-      <div className="space-y-3">
-        {followRequests.map(requester => (
-          <div key={requester._id} className="bg-gray-800 rounded-xl p-4 flex items-center gap-3">
-            <img 
-              src={requester.avatar || 'https://via.placeholder.com/50'} 
-              alt={requester.name}
-              className="w-12 h-12 rounded-full object-cover"
-            />
-            <div className="flex-1">
-              <p className="text-white font-semibold">{requester.name}</p>
-              <p className="text-gray-400 text-sm">Quiere seguirte</p>
-            </div>
-            <div className="flex gap-2">
-              
-              <button
-  onClick={async () => {
-    try {
-      await userService.acceptFollowRequest(requester._id);
-      setFollowRequests(followRequests.filter(r => r._id !== requester._id));
-      
-      // ✅ NUEVO: Actualizar los contadores del usuario actual
-      const currentUser = authService.getCurrentUser();
-      if (currentUser) {
-        currentUser.followers = [...(currentUser.followers || []), requester._id];
-        localStorage.setItem('user', JSON.stringify(currentUser));
-        setUser(currentUser); // Actualizar el estado
-      }
-      
-      alert('✅ Solicitud aceptada');
-    } catch (error) {
-      console.error('Error al aceptar:', error);
-      alert('❌ Error al aceptar solicitud');
-    }
-  }}
-  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
->
-  Aceptar
+    {/* ✅ Solicitudes de seguimiento */}
+    {followRequests.length > 0 && (
+      <div className="mb-6">
+        <h2 className="text-white font-semibold mb-3 text-lg">Solicitudes de seguimiento</h2>
+        <div className="space-y-3">
+          {followRequests.map(requester => (
+            <div key={requester._id} className="bg-gray-800 rounded-xl p-4 flex items-center gap-3">
+              <img 
+                src={requester.avatar || 'https://via.placeholder.com/50'} 
+                alt={requester.name}
+                className="w-12 h-12 rounded-full object-cover"
+              />
+              <div className="flex-1">
+                <p className="text-white font-semibold">{requester.name}</p>
+                <p className="text-gray-400 text-sm">Quiere seguirte</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      await userService.acceptFollowRequest(requester._id);
+                      setFollowRequests(followRequests.filter(r => r._id !== requester._id));
+                      
+                      const currentUser = authService.getCurrentUser();
+                      if (currentUser) {
+                        currentUser.followers = [...(currentUser.followers || []), requester._id];
+                        localStorage.setItem('user', JSON.stringify(currentUser));
+                        setUser(currentUser);
+                      }
+                      
+                      alert('✅ Solicitud aceptada');
+                    } catch (error) {
+                      console.error('Error al aceptar:', error);
+                      alert('❌ Error al aceptar solicitud');
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  Aceptar
                 </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await userService.rejectFollowRequest(requester._id);
+                      setFollowRequests(followRequests.filter(r => r._id !== requester._id));
+                      alert('❌ Solicitud rechazada');
+                    } catch (error) {
+                      console.error('Error al rechazar:', error);
+                      alert('❌ Error al rechazar solicitud');
+                    }
+                  }}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+                >
+                  Rechazar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
 
-              <button
+    {/* ✅ Notificaciones de actividad */}
+    {activityNotifications.length > 0 ? (
+      <div>
+        <h2 className="text-white font-semibold mb-3 text-lg">Actividad</h2>
+        <div className="space-y-2">
+          {activityNotifications.map(notif => {
+            const getNotificationText = () => {
+              switch (notif.type) {
+                case 'like':
+                  return 'le dio me gusta a tu evento';
+                case 'comment':
+                  return 'comentó en tu evento';
+                case 'attend':
+                  return 'confirmó asistencia a tu evento';
+                default:
+                  return 'interactuó con tu evento';
+              }
+            };
+
+            const getNotificationIcon = () => {
+              switch (notif.type) {
+                case 'like':
+                  return '❤️';
+                case 'comment':
+                  return '💬';
+                case 'attend':
+                  return '✅';
+                default:
+                  return '🔔';
+              }
+            };
+
+            return (
+              <div 
+                key={notif._id}
                 onClick={async () => {
-                  try {
-                    await userService.rejectFollowRequest(requester._id);
-                    setFollowRequests(followRequests.filter(r => r._id !== requester._id));
-                    alert('❌ Solicitud rechazada');
-                  } catch (error) {
-                    console.error('Error al rechazar:', error);
-                    alert('❌ Error al rechazar solicitud');
+                  if (!notif.read) {
+                    try {
+                      await notificationService.markAsRead(notif._id);
+                      setActivityNotifications(
+                        activityNotifications.map(n => 
+                          n._id === notif._id ? { ...n, read: true } : n
+                        )
+                      );
+                    } catch (error) {
+                      console.error('Error al marcar:', error);
+                    }
+                  }
+                  
+                  // Navegar al evento
+                  if (notif.event) {
+                    try {
+                      const response = await eventService.getEventById(notif.event._id);
+                      setSelectedEvent(response.event);
+                      setShowEventDetail(true);
+                    } catch (error) {
+                      console.error('Error al cargar evento:', error);
+                    }
                   }
                 }}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+                className={`p-4 rounded-xl flex items-center gap-3 cursor-pointer transition-all ${
+                  notif.read 
+                    ? 'bg-gray-800 hover:bg-gray-750' 
+                    : 'bg-blue-900/30 hover:bg-blue-900/40 border-l-4 border-blue-500'
+                }`}
               >
-                Rechazar
-              </button>
-            </div>
-          </div>
-        ))}
+                <img 
+                  src={notif.sender?.avatar || 'https://via.placeholder.com/50'} 
+                  alt={notif.sender?.name}
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-white">
+                    <span className="font-semibold">{notif.sender?.name}</span>
+                    {' '}
+                    <span className="text-gray-400">{getNotificationText()}</span>
+                  </p>
+                  {notif.event && (
+                    <p className="text-gray-500 text-sm truncate">
+                      {notif.event.title}
+                    </p>
+                  )}
+                  {notif.comment && (
+                    <p className="text-gray-400 text-sm italic truncate mt-1">
+                      "{notif.comment}"
+                    </p>
+                  )}
+                  <p className="text-gray-500 text-xs mt-1">
+                    {new Date(notif.createdAt).toLocaleDateString('es-ES', {
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+                <div className="text-2xl">{getNotificationIcon()}</div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-    ) : (
+    ) : followRequests.length === 0 ? (
       <div className="text-center py-12 bg-gray-800 rounded-xl">
         <Bell className="w-16 h-16 text-gray-600 mx-auto mb-3" />
         <p className="text-gray-400">No tienes notificaciones</p>
       </div>
-    )}
+    ) : null}
   </div>
-      )}
+        )}
       {activeTab === 'userProfile' && renderUserProfile()}
       {activeTab === 'profile' && <div key={profileRefresh}>{renderProfile()}</div>}
     </div>

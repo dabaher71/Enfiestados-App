@@ -1,5 +1,6 @@
 const Event = require('../models/Event');
 const User = require('../models/User');
+const { createNotification } = require('./notificationController');
 
 // Crear evento
 exports.createEvent = async (req, res) => {
@@ -141,8 +142,9 @@ exports.getEvents = async (req, res) => {
 
 // Obtener un evento por ID
 exports.getEventById = async (req, res) => {
+     console.log('🎯 getEventById llamado con ID:', req.params.eventId);
     try {
-        const event = await Event.findById(req.params.id)
+        const event = await Event.findById(req.params.eventId)
             .populate('organizer', 'name avatar email')
             .populate('attendees', 'name avatar')
             .populate('comments.user', 'name avatar');
@@ -168,12 +170,11 @@ exports.getEventById = async (req, res) => {
     }
 };
 
-// Actualizar evento
 
 // Actualizar evento (solo el organizador)
 exports.updateEvent = async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id);
+    const event = await Event.findById(req.params.eventId);
     
     if (!event) {
       return res.status(404).json({ 
@@ -248,7 +249,7 @@ exports.updateEvent = async (req, res) => {
 // Eliminar evento (solo el organizador)
 exports.deleteEvent = async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id);
+    const event = await Event.findById(req.params.eventId);
     
     if (!event) {
       return res.status(404).json({ message: 'Evento no encontrado' });
@@ -259,7 +260,7 @@ exports.deleteEvent = async (req, res) => {
       return res.status(403).json({ message: 'No tienes permiso para eliminar este evento' });
     }
 
-    await Event.findByIdAndDelete(req.params.id);
+    await Event.findByIdAndDelete(req.params.eventId);
 
     res.json({ 
       success: true, 
@@ -276,59 +277,54 @@ exports.deleteEvent = async (req, res) => {
 
 // Asistir a un evento
 exports.attendEvent = async (req, res) => {
-    try {
-        const event = await Event.findById(req.params.id);
-
-        if (!event) {
-            return res.status(404).json({
-                success: false,
-                message: 'Evento no encontrado'
-            });
-        }
-
-        // Verificar si ya está asistiendo
-        if (event.attendees.includes(req.user.id)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Ya estás asistiendo a este evento'
-            });
-        }
-
-        // Verificar capacidad
-        if (event.capacity && event.attendees.length >= event.capacity) {
-            return res.status(400).json({
-                success: false,
-                message: 'El evento ha alcanzado su capacidad máxima'
-            });
-        }
-
-        event.attendees.push(req.user.id);
-        await event.save();
-
-        // Agregar evento a la lista del usuario
-        await User.findByIdAndUpdate(req.user.id, {
-            $push: { eventsAttending: event._id }
-        });
-
-        res.status(200).json({
-            success: true,
-            message: 'Te has registrado al evento exitosamente',
-            event
-        });
-    } catch (error) {
-        console.error('Error al asistir a evento:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al asistir a evento',
-            error: error.message
-        });
+  try {
+    const event = await Event.findById(req.params.eventId);
+    
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Evento no encontrado'
+      });
     }
+
+    const userId = req.user.id;
+    const isAttending = event.attendees.includes(userId);
+
+    if (isAttending) {
+      event.attendees = event.attendees.filter(id => id.toString() !== userId);
+    } else {
+      event.attendees.push(userId);
+      
+      // ✅ NUEVO: Crear notificación
+      await createNotification(
+        event.organizer,
+        userId,
+        'attend',
+        event._id
+      );
+    }
+
+    await event.save();
+
+    res.status(200).json({
+      success: true,
+      attending: !isAttending,
+      attendees: event.attendees.length
+    });
+  } catch (error) {
+    console.error('Error al confirmar asistencia:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al confirmar asistencia',
+      error: error.message
+    });
+  }
 };
 
 // Cancelar asistencia a un evento
 exports.unattendEvent = async (req, res) => {
     try {
-        const event = await Event.findById(req.params.id);
+        const event = await Event.findById(req.params.eventId);
 
         if (!event) {
             return res.status(404).json({
@@ -372,84 +368,96 @@ exports.unattendEvent = async (req, res) => {
 
 // Dar like a un evento
 exports.likeEvent = async (req, res) => {
-    try {
-        const event = await Event.findById(req.params.id);
-
-        if (!event) {
-            return res.status(404).json({
-                success: false,
-                message: 'Evento no encontrado'
-            });
-        }
-
-        // Toggle like
-        if (event.likes.includes(req.user.id)) {
-            event.likes = event.likes.filter(id => id.toString() !== req.user.id);
-        } else {
-            event.likes.push(req.user.id);
-        }
-
-        await event.save();
-
-        res.status(200).json({
-            success: true,
-            liked: event.likes.includes(req.user.id),
-            likesCount: event.likes.length
-        });
-    } catch (error) {
-        console.error('Error al dar like:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al dar like',
-            error: error.message
-        });
+  try {
+    const event = await Event.findById(req.params.eventId);
+    
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Evento no encontrado'
+      });
     }
+
+    const userId = req.user.id;
+    const hasLiked = event.likes.includes(userId);
+
+    if (hasLiked) {
+      event.likes = event.likes.filter(id => id.toString() !== userId);
+    } else {
+      event.likes.push(userId);
+      
+      // ✅ NUEVO: Crear notificación
+      await createNotification(
+        event.organizer,
+        userId,
+        'like',
+        event._id
+      );
+    }
+
+    await event.save();
+
+    res.status(200).json({
+      success: true,
+      liked: !hasLiked,
+      likes: event.likes.length
+    });
+  } catch (error) {
+    console.error('Error al dar like:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al dar like al evento',
+      error: error.message
+    });
+  }
 };
 
 // Agregar comentario
 exports.addComment = async (req, res) => {
-    try {
-        const { text } = req.body;
+  try {
+    const { text } = req.body;
+    const event = await Event.findById(req.params.eventId);
 
-        if (!text || text.trim().length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'El comentario no puede estar vacío'
-            });
-        }
-
-        const event = await Event.findById(req.params.id);
-
-        if (!event) {
-            return res.status(404).json({
-                success: false,
-                message: 'Evento no encontrado'
-            });
-        }
-
-        event.comments.push({
-            user: req.user.id,
-            text: text.trim()
-        });
-
-        await event.save();
-
-        const updatedEvent = await Event.findById(req.params.id)
-            .populate('comments.user', 'name avatar');
-
-        res.status(201).json({
-            success: true,
-            message: 'Comentario agregado',
-            comments: updatedEvent.comments
-        });
-    } catch (error) {
-        console.error('Error al agregar comentario:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al agregar comentario',
-            error: error.message
-        });
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Evento no encontrado'
+      });
     }
+
+    const comment = {
+      user: req.user.id,
+      text,
+      createdAt: new Date()
+    };
+
+    event.comments.push(comment);
+    await event.save();
+
+    const populatedEvent = await Event.findById(event._id)
+      .populate('comments.user', 'name avatar');
+
+    // ✅ NUEVO: Crear notificación
+    await createNotification(
+      event.organizer,
+      req.user.id,
+      'comment',
+      event._id,
+      text
+    );
+
+    res.status(200).json({
+      success: true,
+      comments: populatedEvent.comments
+    });
+  } catch (error) {
+    console.error('Error al agregar comentario:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al agregar comentario',
+      error: error.message
+    });
+  }
 };
 
 // Subir imagen del evento

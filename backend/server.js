@@ -44,7 +44,9 @@ app.get('/', (req, res) => {
 // USO DE LAS RUTAS
 app.use('/api/auth', require('./src/routes/authRoutes')); 
 app.use('/api/users', require('./src/routes/userRoutes')); 
+app.use('/api/notifications', require('./src/routes/notificationRoutes'));
 app.use('/api/events', require('./src/routes/events')); 
+
 
 
 // Puerto
