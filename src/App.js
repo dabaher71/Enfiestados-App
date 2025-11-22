@@ -377,11 +377,11 @@ const EventsApp = () => {
     <div className="flex-1 flex items-center justify-center p-6 bg-gray-900">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex justify-center mb-6">
+        <div className="flex justify-center mb-4">
           <img 
             src={require('./assets/logo.png')} 
             alt="Enfiestados" 
-            className="w-32 h-32 object-contain"
+            className="w-48 h-48 object-contain"
           />
         </div>
         
@@ -3996,3 +3996,4 @@ const EventsApp = () => {
 };
 
 export default EventsApp;
+

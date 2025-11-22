@@ -20,10 +20,27 @@ const passport = require('./src/config/passport');
 const app = express();
 
 // Middleware
+// Middleware CORS - Permitir apps móviles
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  origin: function(origin, callback) {
+    // Permitir requests sin origin (como mobile apps o Postman)
+    if (!origin) return callback(null, true);
+    
+    // Permitir localhost para Capacitor
+    if (origin && (origin.startsWith('http://localhost') || origin.startsWith('https://localhost'))) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = `La política de CORS no permite acceso desde el origen: ${origin}`;
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   credentials: true
 }));
+
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
