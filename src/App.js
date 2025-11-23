@@ -6,12 +6,108 @@ import { userService } from './services/userService';
 import { eventService } from './services/eventService';
 import { notificationService } from './services/notificationService';
 
+// Componente Toast Notification estilo YouTube
+const Toast = ({ message, type = 'info', onClose }) => {
+  const [isExiting, setIsExiting] = useState(false);
+
+  useEffect(() => {
+    // Tiempo total visible antes de iniciar salida
+    const visibleMs = 3500;
+    const exitAnimMs = 400; // debe coincidir con la animación de salida
+    const enterDelay = 50;
+
+    const t1 = setTimeout(() => {
+      // iniciar salida después de visibleMs
+      setIsExiting(true);
+      setTimeout(onClose, exitAnimMs);
+    }, visibleMs + enterDelay);
+
+    return () => clearTimeout(t1);
+  }, [onClose]);
+
+  const getIcon = () => {
+    switch(type) {
+      case 'success': return '✓';
+      case 'error': return '✕';
+      case 'like': return '❤️';
+      case 'comment': return '💬';
+      case 'follow': return '👤';
+      default: return 'ℹ️';
+    }
+  };
+
+  const getIconBg = () => {
+    switch(type) {
+      case 'success': return 'bg-green-500';
+      case 'error': return 'bg-red-500';
+      default: return 'bg-blue-500';
+    }
+  };
+
+  // animaciones inline para no depender de CSS global
+  const enterDuration = 600;
+  const exitDuration = 400;
+  const enterTiming = 'cubic-bezier(.2,.9,.2,1)';
+  const exitTiming = 'cubic-bezier(.25,.8,.25,1)';
+
+  return (
+    <>
+      <style>{`
+        @keyframes enfi_toast_enter {
+          0% { transform: translate(-50%, -36px); opacity: 0; }
+          60% { transform: translate(-50%, 6px); opacity: 1; }
+          100% { transform: translate(-50%, 0); opacity: 1; }
+        }
+        @keyframes enfi_toast_exit {
+          0% { transform: translate(-50%, 0); opacity: 1; }
+          100% { transform: translate(-50%, -48px); opacity: 0; }
+        }
+      `}</style>
+
+      <div
+        aria-live="polite"
+        style={{
+          zIndex: 9999,
+          position: 'fixed',
+          top: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          pointerEvents: 'auto',
+          animationName: isExiting ? 'enfi_toast_exit' : 'enfi_toast_enter',
+          animationDuration: `${isExiting ? exitDuration : enterDuration}ms`,
+          animationTimingFunction: isExiting ? exitTiming : enterTiming,
+          animationFillMode: 'forwards'
+        }}
+      >
+        <div className="bg-white rounded-2xl shadow-2xl px-5 py-3 flex items-center space-x-3 min-w-[320px] max-w-[90vw]">
+          <div className={`${getIconBg()} text-white w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold`}>
+            {getIcon()}
+          </div>
+          <p className="text-gray-800 font-medium flex-1 text-sm">{message}</p>
+          <button
+            onClick={() => {
+              setIsExiting(true);
+              // esperar la animación de salida antes de cerrar
+              setTimeout(onClose, exitDuration);
+            }}
+            className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+            aria-label="Cerrar notificación"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+    </>
+  );
+};
+
 const EventsApp = () => {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [user, setUser] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [toast, setToast] = useState(null);
   const [editProfileData, setEditProfileData] = useState({
     name: '',
     bio: '',
@@ -154,7 +250,9 @@ const EventsApp = () => {
         name: currentUser?.name || '',
         interests: currentUser?.interests || [],
         avatar: null,
-        coverImage: null
+        coverImage: null,
+        // inicializar perfilPublico para que el toggle tenga valor correcto
+        perfilPublico: currentUser?.perfilPublico !== undefined ? currentUser.perfilPublico : true
       });
     }
   }, [showEditProfile]);
@@ -173,6 +271,23 @@ const EventsApp = () => {
     loadOrganizedEvents(userId);
   }
 }, [activeTab, currentUserData, profileRefresh]);
+
+useEffect(() => {
+  console.log('🔄 TOAST STATE CAMBIÓ A:', toast);
+}, [toast]);
+
+
+
+// Función para mostrar notificaciones tipo toast
+
+const showToast = (message, type = 'info') => {
+  console.log('🔔 SHOWTOAST LLAMADO:', message, type);
+  console.log('📊 Toast state antes:', toast);
+  setToast({ message, type });
+  console.log('✅ setToast ejecutado');
+};
+
+
   // Función para cargar eventos
   const loadEvents = async () => {
     try {
@@ -224,46 +339,45 @@ const EventsApp = () => {
 
   // Handlers de Auth (Registro e Inicio de Sesión)
   const handleAuthSubmit = async (e) => {
-    e.preventDefault();
-    try {
-        let response;
-        if (authMode === 'register') {
-            response = await authService.register({
-            email: formData.email,
-            password: formData.password,
-            name: formData.name,
-            gender: formData.gender
-            });
-            alert('✅ Registro exitoso. ¡Inicia sesión!');
-            setAuthMode('login');
-        } else {
-            response = await authService.login({
-            email: formData.email,
-            password: formData.password
-            });
-            alert('✅ Inicio de sesión exitoso');
-            setIsAuthenticated(true);
-            setCurrentUserData(authService.getCurrentUser());
-            // Si no tiene preferencias, mostrar Onboarding
-            if (!response.user.location && response.user.categories?.length === 0) {
-                setShowOnboarding(true);
-            }
-        }
-        setFormData({ email: '', password: '', name: '', gender: 'no-especificado' }); // Limpiar formulario
-    } catch (error) {
-        console.error('Error de autenticación:', error);
-        alert('❌ Error: ' + (error.response?.data?.message || 'Credenciales inválidas.'));
+  e.preventDefault();
+  try {
+    let response;
+    if (authMode === 'register') {
+      response = await authService.register({
+        email: formData.email,
+        password: formData.password,
+        name: formData.name,
+        gender: formData.gender
+      });
+      showToast('Registro exitoso. ¡Inicia sesión!', 'success');
+      setAuthMode('login');
+    } else {
+      response = await authService.login({
+        email: formData.email,
+        password: formData.password
+      });
+      showToast('Inicio de sesión exitoso', 'success');
+      setIsAuthenticated(true);
+      setCurrentUserData(authService.getCurrentUser());
+      if (!response.user.location && response.user.categories?.length === 0) {
+        setShowOnboarding(true);
+      }
     }
+    setFormData({ email: '', password: '', name: '', gender: 'no-especificado' });
+  } catch (error) {
+    console.error('Error de autenticación:', error);
+    showToast(error.response?.data?.message || 'Credenciales inválidas', 'error');
+  }
   };
 
   // Handlers de Onboarding
   const handleOnboardingNext = () => {
     if (onboardingStep === 1 && !userPreferences.location) {
-        alert('Por favor, selecciona tu ubicación.');
+        showToast('Por favor, selecciona tu ubicación.', 'error');
         return;
     }
     if (onboardingStep === 2 && userPreferences.categories.length === 0) {
-        alert('Por favor, selecciona al menos una categoría.');
+        showToast('Por favor, selecciona al menos una categoría.', 'error');
         return;
     }
 
@@ -287,12 +401,12 @@ const EventsApp = () => {
   const handleSavePreferences = async () => {
     try {
         await userService.updatePreferences(userPreferences);
-        alert('✅ Preferencias guardadas');
+        showToast('✅ Preferencias guardadas', 'success');
         setShowOnboarding(false);
         setProfileRefresh(prev => prev + 1); // Forzar recarga de datos/eventos
     } catch (error) {
         console.error('Error al guardar preferencias:', error);
-        alert('Error al guardar preferencias. Intenta de nuevo.');
+        showToast('Error al guardar preferencias. Intenta de nuevo.', 'error');
     }
   };
 
@@ -385,12 +499,11 @@ const EventsApp = () => {
           />
         </div>
         
-        {/* Título */}
-        <h1 className="text-white text-4xl font-bold mb-2 text-center">Enfiestados</h1>
+
         
-        <h2 className="text-white text-xl font-semibold mb-2 text-center">
+        <h1 className="text-white text-xl font-semibold mb-2 text-center">
           {authMode === 'login' ? 'Bienvenido' : 'Crear Cuenta'}
-        </h2>
+        </h1>
         <p className="text-gray-400 mb-6 text-center">
           {authMode === 'login' 
             ? 'Inicia sesión para continuar' 
@@ -869,6 +982,7 @@ const EventsApp = () => {
                           setShowEventDetail(true);
                         } catch (error) {
                           console.error('Error al cargar evento:', error);
+                          showToast('Error al cargar el evento', 'error');
                         }
                       }}
                     >
@@ -985,7 +1099,7 @@ const EventsApp = () => {
 
     const handleSubmitEvent = async () => {
       if (!eventData.title || !eventData.category || !eventData.date || !eventData.time) {
-        alert('Por favor completa todos los campos requeridos');
+        showToast('Por favor completa todos los campos requeridos', 'error');
         return;
       }
 
@@ -994,12 +1108,12 @@ const EventsApp = () => {
       today.setHours(0, 0, 0, 0);
 
       if (selectedDate < today) {
-        alert('❌ No puedes crear eventos en fechas pasadas');
+        showToast('❌ No puedes crear eventos en fechas pasadas', 'error');
         return;
           }
       
       if (!eventData.location) {
-        alert('Por favor selecciona una ubicación en el mapa');
+        showToast('Por favor selecciona una ubicación en el mapa', 'error');
         return;
       }
 
@@ -1028,7 +1142,7 @@ const EventsApp = () => {
 
         await eventService.createEvent(newEvent);
         
-        alert('🎉 ¡Evento creado exitosamente!');
+        showToast('🎉 ¡Evento creado exitosamente!', 'success');
         
         await loadEvents();
         
@@ -1053,7 +1167,7 @@ const EventsApp = () => {
         setActiveTab('feed');
       } catch (error) {
         console.error('Error al crear evento:', error);
-        alert('❌ Error al crear evento: ' + (error.response?.data?.message || error.message));
+        showToast('❌ Error al crear evento: ' + (error.response?.data?.message || error.message), 'error');
       }
     };
 
@@ -1611,7 +1725,7 @@ const EventsApp = () => {
           });
         }
         
-        alert('✅ Dejaste de seguir a ' + profileUser.name);
+        showToast('✅ Dejaste de seguir a ' + profileUser.name, 'success');
       } else if (profileUser?.hasPendingRequest) {
         // ✅ NUEVO: Cancelar solicitud pendiente
         const confirmed = window.confirm(
@@ -1629,7 +1743,7 @@ const EventsApp = () => {
           hasPendingRequest: false
         });
         
-        alert('✅ Solicitud cancelada');
+        showToast('✅ Solicitud cancelada', 'success');
       } else {
         // Seguir o solicitar seguir
         if (!profileUser.perfilPublico) {
@@ -1640,7 +1754,7 @@ const EventsApp = () => {
             hasPendingRequest: true
           });
           
-          alert('📩 Solicitud enviada a ' + profileUser.name);
+          showToast('📩 Solicitud enviada a ' + profileUser.name, 'success');
         } else {
           await userService.followUser(userId);
           
@@ -1653,12 +1767,12 @@ const EventsApp = () => {
             await loadUserProfile(userId);
           }, 500);
           
-          alert('✅ Ahora sigues a ' + profileUser.name);
+          showToast('✅ Ahora sigues a ' + profileUser.name, 'success');
         }
       }
     } catch (error) {
       console.error('Error al seguir/dejar de seguir:', error);
-      alert('❌ Error: ' + (error.response?.data?.message || error.message));
+      showToast('❌ Error: ' + (error.response?.data?.message || error.message), 'error');
     }
   }}
   className={`w-full font-semibold py-3 rounded-xl transition-all mb-6 ${
@@ -1739,7 +1853,7 @@ const EventsApp = () => {
                                   setShowEventDetail(true);
                                 } catch (error) {
                                   console.error('Error al cargar evento:', error);
-                                  alert('Error al cargar el evento');
+                                  showToast('Error al cargar el evento', 'error');
                                 }
                               }}
                             >
@@ -1835,7 +1949,7 @@ const EventsApp = () => {
                                       setShowEventDetail(true);
                                     } catch (error) {
                                       console.error('Error al cargar evento:', error);
-                                      alert('Error al cargar el evento');
+                                      showToast('Error al cargar el evento', 'error');
                                     }
                                   }}
                                 >
@@ -1956,6 +2070,7 @@ const EventsApp = () => {
                         setShowEventDetail(true);
                       } catch (error) {
                         console.error('Error al cargar evento:', error);
+                        showToast('Error al cargar el evento', 'error');
                       }
                     }}
                   >
@@ -2022,6 +2137,7 @@ const EventsApp = () => {
                             setShowEventDetail(true);
                           } catch (error) {
                             console.error('Error al cargar evento:', error);
+                            showToast('Error al cargar el evento', 'error');
                           }
                         }}
                       >
@@ -2114,7 +2230,7 @@ const EventsApp = () => {
     }
   } catch (error) {
     console.error('Error al cargar perfil:', error);
-    alert('Error al cargar el perfil');
+    showToast('Error al cargar el perfil', 'error');
   } finally {
     setLoadingUserProfile(false);
   }
@@ -2373,7 +2489,7 @@ const EventsApp = () => {
       if (file) {
         try {
           const data = await userService.uploadAvatar(file);
-          alert('Avatar actualizado exitosamente');
+          showToast('Avatar actualizado exitosamente', 'success');
           const user = authService.getCurrentUser();
           user.avatar = data.avatar;
           localStorage.setItem('user', JSON.stringify(user));
@@ -2381,7 +2497,7 @@ const EventsApp = () => {
           setShowEditProfile(false);
           setProfileRefresh(prev => prev + 1);
         } catch (error) {
-          alert('Error al subir avatar');
+          showToast('Error al subir avatar', 'error');
         }
       }
     };
@@ -2391,7 +2507,7 @@ const EventsApp = () => {
       if (file) {
         try {
           const data = await userService.uploadCoverImage(file);
-          alert('Imagen de portada actualizada exitosamente');
+          showToast('Imagen de portada actualizada exitosamente', 'success');
           const user = authService.getCurrentUser();
           user.coverImage = data.coverImage;
           localStorage.setItem('user', JSON.stringify(user));
@@ -2399,7 +2515,7 @@ const EventsApp = () => {
           setShowEditProfile(false);
           setProfileRefresh(prev => prev + 1);
         } catch (error) {
-          alert('Error al subir imagen de portada');
+          showToast('Error al subir imagen de portada', 'error');
         }
       }
     };
@@ -2415,11 +2531,11 @@ const EventsApp = () => {
         user.avatar = null;
         localStorage.setItem('user', JSON.stringify(user));
         setCurrentUserData({...user});
-        alert('Foto de perfil eliminada');
+        showToast('Foto de perfil eliminada', 'success');
         setShowEditProfile(false);
         setProfileRefresh(prev => prev + 1);
       } catch (error) {
-        alert('Error al eliminar foto de perfil');
+        showToast('Error al eliminar foto de perfil', 'error');
       }
     };
 
@@ -2434,11 +2550,11 @@ const EventsApp = () => {
         user.coverImage = null;
         localStorage.setItem('user', JSON.stringify(user));
         setCurrentUserData({...user});
-        alert('Imagen de portada eliminada');
+        showToast('Imagen de portada eliminada', 'success');
         setShowEditProfile(false);
         setProfileRefresh(prev => prev + 1);
       } catch (error) {
-        alert('Error al eliminar imagen de portada');
+        showToast('Error al eliminar imagen de portada', 'error');
       }
     };
 
@@ -2473,13 +2589,13 @@ const EventsApp = () => {
           localStorage.setItem('user', JSON.stringify(updatedUser));
           setCurrentUserData(updatedUser);
           
-          alert('✅ Perfil actualizado exitosamente');
+          showToast('Perfil actualizado exitosamente', 'success');
           setShowEditProfile(false);
           setProfileRefresh(prev => prev + 1);
         }
       } catch (error) {
         console.error('Error completo:', error);
-        alert('❌ ERROR: ' + (error.response?.data?.message || error.message));
+        showToast('❌ ERROR: ' + (error.response?.data?.message || error.message), 'error');
       }
     };
 
@@ -2658,38 +2774,42 @@ const EventsApp = () => {
           </p>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.preventDefault();
-          const currentValue = editProfileData.perfilPublico !== undefined 
-            ? editProfileData.perfilPublico 
-            : (currentUser?.perfilPublico !== undefined ? currentUser.perfilPublico : true);
-          
-          handleEditInputChange('perfilPublico', !currentValue);
-        }}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-          (editProfileData.perfilPublico !== undefined 
-            ? !editProfileData.perfilPublico  // ✅ INVERTIDO con !
-            : !(currentUser?.perfilPublico !== undefined ? currentUser.perfilPublico : true))
-            ? 'bg-blue-600' 
-            : 'bg-gray-600'
-        }`}
-      >
-        <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-            (editProfileData.perfilPublico !== undefined 
-              ? !editProfileData.perfilPublico  // ✅ INVERTIDO con !
-              : !(currentUser?.perfilPublico !== undefined ? currentUser.perfilPublico : true))
-              ? 'translate-x-6' 
-              : 'translate-x-1'
-          }`}
-        />
-      </button>
+
+      {/* Improved toggle: compute current value and render a clipped, responsive switch */}
+      {(() => {
+        const perfilPublicoCurrent = editProfileData.perfilPublico !== undefined
+          ? editProfileData.perfilPublico
+          : (currentUser?.perfilPublico !== undefined ? currentUser.perfilPublico : true);
+
+        const isPrivate = !perfilPublicoCurrent;
+
+        return (
+
+            <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              // corregido: invertir el valor actual de perfilPublico
+              handleEditInputChange('perfilPublico', !perfilPublicoCurrent);
+            }}
+            aria-pressed={isPrivate}
+            className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors overflow-hidden focus:outline-none ${
+              isPrivate ? 'bg-blue-600' : 'bg-gray-600'
+            }`}
+          >
+            {/* knob positioned with absolute + small translate (safe for small screens) */}
+            <span
+              className={`absolute top-1 left-1 h-4 w-4 rounded-full bg-white transition-transform transform ${
+                isPrivate ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
+
+        );
+      })()}
     </div>
   </div>
                 </div>
-             
 
               {/* Botón Guardar Cambios - YA LO TIENES */}
               <button
@@ -2717,7 +2837,7 @@ const EventsApp = () => {
 
     const handleAddComment = async () => {
       if (!newComment.trim()) {
-        alert('El comentario no puede estar vacío');
+        showToast('El comentario no puede estar vacío');
         return;
       }
 
@@ -2732,7 +2852,7 @@ const EventsApp = () => {
         await loadEvents();
       } catch (error) {
         console.error('Error al agregar comentario:', error);
-        alert('Error al agregar comentario');
+        showToast('Error al agregar comentario', 'error');
       } finally {
         setSubmittingComment(false);
       }
@@ -2742,10 +2862,10 @@ const EventsApp = () => {
       try {
         if (isAttending) {
           await eventService.unattendEvent(selectedEvent._id);
-          alert('❌ Has cancelado tu asistencia');
+          showToast('❌ Has cancelado tu asistencia', 'info');
         } else {
           await eventService.attendEvent(selectedEvent._id);
-          alert('✅ Te has registrado al evento');
+          showToast('✅ Te has registrado al evento', 'success');
         }
         
         const response = await eventService.getEventById(selectedEvent._id);
@@ -2754,7 +2874,7 @@ const EventsApp = () => {
         await loadEvents();
       } catch (error) {
         console.error('Error al cambiar asistencia:', error);
-        alert(error.response?.data?.message || 'Error al procesar asistencia');
+        showToast(error.response?.data?.message || 'Error al procesar asistencia', 'error');
       }
     };
 
@@ -2769,6 +2889,7 @@ const EventsApp = () => {
         await loadEvents();
       } catch (error) {
         console.error('Error al dar like:', error);
+        showToast('Error al dar like', 'error');
       }
     };
 
@@ -3480,19 +3601,18 @@ const EventsApp = () => {
 
   const handleLogin = async (e) => {
   e.preventDefault();
-  
-  if (!formData.email || !formData.password) {
-    alert('Por favor completa todos los campos');
+ if (!formData.email || !formData.password) {
+    showToast('Por favor completa todos los campos', 'error');
     return;
   }
   
   if (!formData.email.includes('@')) {
-    alert('Por favor ingresa un email válido');
+    showToast('Por favor ingresa un email válido', 'error');
     return;
   }
   
   if (formData.password.length < 6) {
-    alert('La contraseña debe tener al menos 6 caracteres');
+    showToast('La contraseña debe tener al menos 6 caracteres', 'error');
     return;
   }
   
@@ -3514,9 +3634,9 @@ const EventsApp = () => {
     }
     
     setIsAuthenticated(true);
-  } catch (error) {
+  }  catch (error) {
     console.error('Error en login:', error);
-    alert(error.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.');
+    showToast(error.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.', 'error');
   }
   };
 
@@ -3524,22 +3644,22 @@ const EventsApp = () => {
     e.preventDefault();
     
     if (!formData.name || !formData.email || !formData.password) {
-      alert('Por favor completa todos los campos');
+      showToast('Por favor completa todos los campos', 'error');
       return;
     }
     
     if (formData.name.length < 2) {
-      alert('El nombre debe tener al menos 2 caracteres');
+      showToast('El nombre debe tener al menos 2 caracteres', 'error');
       return;
     }
     
     if (!formData.email.includes('@')) {
-      alert('Por favor ingresa un email válido');
+      showToast('Por favor ingresa un email válido', 'error');
       return;
     }
     
     if (formData.password.length < 6) {
-      alert('La contraseña debe tener al menos 6 caracteres');
+      showToast('La contraseña debe tener al menos 6 caracteres', 'error');
       return;
     }
     
@@ -3550,7 +3670,7 @@ const EventsApp = () => {
       setShowOnboarding(true);
     } catch (error) {
       console.error('Error en registro:', error);
-      alert(error.response?.data?.message || 'Error al registrarse. El email puede estar en uso.');
+      showToast(error.response?.data?.message || 'Error al registrarse. El email puede estar en uso.', 'error');
     }
   };
 
@@ -3580,7 +3700,7 @@ const EventsApp = () => {
       await loadEvents();
     } catch (error) {
       console.error('Error al dar like:', error);
-      alert('Error al dar like al evento');
+      showToast('Error al dar like al evento', 'error');
     }
   };
  
@@ -3611,12 +3731,12 @@ const EventsApp = () => {
 
   const handleSaveEditEvent = async () => {
   if (!eventData.title || !eventData.category || !eventData.date || !eventData.time) {
-    alert('Por favor completa todos los campos requeridos');
+    showToast('Por favor completa todos los campos requeridos', 'error');
     return;
   }
 
   if (!eventData.location) {
-    alert('Por favor selecciona una ubicación en el mapa');
+    showToast('Por favor selecciona una ubicación en el mapa', 'error');
     return;
   }
 
@@ -3646,7 +3766,7 @@ const EventsApp = () => {
 
     await eventService.updateEvent(editingEvent._id, updatedEvent);
     
-    alert('✅ ¡Evento actualizado exitosamente!');
+    showToast('✅ ¡Evento actualizado exitosamente!', 'success');
     
     await loadEvents();
     if (currentUserData?.id) {
@@ -3676,7 +3796,7 @@ const EventsApp = () => {
     
   } catch (error) {
     console.error('Error al actualizar evento:', error);
-    alert('❌ Error al actualizar evento: ' + (error.response?.data?.message || error.message));
+    showToast('❌ Error al actualizar evento: ' + (error.response?.data?.message || error.message), 'error');
   }
   };
 
@@ -3687,7 +3807,7 @@ const EventsApp = () => {
 
   try {
     await eventService.deleteEvent(eventId);
-    alert('✅ Evento eliminado exitosamente');
+    showToast('✅ Evento eliminado exitosamente', 'success');
     
     await loadEvents();
     if (currentUserData?.id) {
@@ -3695,7 +3815,7 @@ const EventsApp = () => {
     }
   } catch (error) {
     console.error('Error al eliminar evento:', error);
-    alert('❌ Error al eliminar evento: ' + (error.response?.data?.message || error.message));
+    showToast('❌ Error al eliminar evento: ' + (error.response?.data?.message || error.message), 'error');
   }
   };
 
@@ -3726,10 +3846,17 @@ const EventsApp = () => {
   }
   };
 
-  if (showOnboarding) {
+ if (showOnboarding) {
     return (
       <div className="w-full h-screen bg-gray-900 flex flex-col max-w-md mx-auto">
         {renderOnboarding()}
+        {toast && (
+          <Toast 
+            message={toast.message} 
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
       </div>
     );
   }
@@ -3738,6 +3865,13 @@ const EventsApp = () => {
     return (
       <div className="w-full h-screen bg-gray-900 flex flex-col max-w-md mx-auto">
         {renderAuth()}
+        {toast && (
+          <Toast 
+            message={toast.message} 
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
       </div>
     );
   }
@@ -3746,6 +3880,15 @@ const EventsApp = () => {
 
   return (
   <div className="w-full h-screen bg-gray-900 flex flex-col max-w-md mx-auto overflow-hidden relative">
+    {/* Toast Notification */}
+    {toast && (
+      <Toast 
+        message={toast.message} 
+        type={toast.type}
+        onClose={() => setToast(null)}
+      />
+    )}
+    
     {/* Contenido principal con scroll */}
     <div className="flex-1 overflow-y-auto">
       {activeTab === 'feed' && renderFeed()}
@@ -3802,10 +3945,10 @@ const EventsApp = () => {
                         setUser(currentUser);
                       }
                       
-                      alert('✅ Solicitud aceptada');
+                      showToast('Solicitud aceptada', 'success');
                     } catch (error) {
                       console.error('Error al aceptar:', error);
-                      alert('❌ Error al aceptar solicitud');
+                      showToast('Error al aceptar solicitud', 'error');
                     }
                   }}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
@@ -3817,10 +3960,10 @@ const EventsApp = () => {
                     try {
                       await userService.rejectFollowRequest(requester._id);
                       setFollowRequests(followRequests.filter(r => r._id !== requester._id));
-                      alert('❌ Solicitud rechazada');
+                      showToast('Solicitud rechazada', 'error');
                     } catch (error) {
                       console.error('Error al rechazar:', error);
-                      alert('❌ Error al rechazar solicitud');
+                      showToast('Error al rechazar solicitud', 'error');
                     }
                   }}
                   className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
@@ -3993,6 +4136,8 @@ const EventsApp = () => {
       </div>
   </div>
 );
+
+
 };
 
 export default EventsApp;
