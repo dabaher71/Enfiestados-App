@@ -45,44 +45,54 @@ const FeedTabs = ({
   }, [feedTab, userLocation]);
 
   const loadEventsByTab = async () => {
-  if (!userLocation) return;
+    if (!userLocation) return;
 
-  setLoadingEvents(true);
-  try {
-    let response;
+    setLoadingEvents(true);
+    try {
+      let response;
 
-    // 🧪 TEMPORAL: Usar solo getEvents() para testear
-    // Ignorar el switch de tabs por ahora
-    response = await eventService.getEvents({
-      lat: userLocation.lat,
-      lng: userLocation.lng,
-      radius: 50000
-    });
+      switch (feedTab) {
+        case 'siguiendo':
+          // TAB 1: Eventos de usuarios que sigues
+          response = await eventService.getFollowingEvents();
+          break;
 
-    console.log('✅ Respuesta de getEvents:', response);
+        case 'para-ti':
+          // TAB 2: Eventos recomendados basados en intereses
+          response = await eventService.getForYouEvents();
+          break;
 
-    // Filtrar por búsqueda si existe
-    let filteredEvents = response.events || response.data || [];
-    
-    console.log('📊 Eventos obtenidos:', filteredEvents.length);
+        case 'explorar':
+          // TAB 3: Eventos cercanos y populares
+          response = await eventService.getExploreEvents({
+            lat: userLocation.lat,
+            lng: userLocation.lng,
+            radius: 50000 // 50km
+          });
+          break;
 
-    if (searchQuery.trim()) {
-      filteredEvents = filteredEvents.filter(event =>
-        event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        event.description?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+        default:
+          response = await eventService.getEvents();
+      }
+
+      // Filtrar por búsqueda si existe
+      let filteredEvents = response.events || response.data || [];
+      
+      if (searchQuery.trim()) {
+        filteredEvents = filteredEvents.filter(event =>
+          event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          event.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+      }
+
+      setEvents(filteredEvents);
+    } catch (error) {
+      console.error('Error al cargar eventos:', error);
+      setEvents([]);
+    } finally {
+      setLoadingEvents(false);
     }
-
-    setEvents(filteredEvents);
-  } catch (error) {
-    console.error('❌ Error al cargar eventos:', error);
-    console.error('Status:', error.response?.status);
-    console.error('Data:', error.response?.data);
-    setEvents([]);
-  } finally {
-    setLoadingEvents(false);
-  }
-};
+  };
 
   // 🔍 Buscar cuando cambia el searchQuery
   useEffect(() => {

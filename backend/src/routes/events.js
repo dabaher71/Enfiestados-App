@@ -10,12 +10,20 @@ const {
   likeEvent,
   addComment,
   uploadEventImage,
-  getEventsByOrganizer
+  getEventsByOrganizer,
+  getFollowingEvents,    // 🆕 Agregar
+  getForYouEvents,       // 🆕 Agregar
+  getExploreEvents 
 } = require('../controllers/eventController');
 const { protect } = require('../middleware/auth');
 const { upload } = require('../config/cloudinary');
 
 const router = express.Router();
+
+router.get('/feed/following', protect, eventController.getFollowingEvents);
+router.get('/feed/for-you', protect, eventController.getForYouEvents);
+router.get('/feed/explore', protect, eventController.getExploreEvents);
+
 
 // Rutas públicas
 router.get('/', getEvents);
@@ -38,9 +46,6 @@ router.post('/:eventId/comments', protect, addComment);
 // Subir imagen
 router.post('/upload-image', protect, upload.single('image'), uploadEventImage);
 
-router.get('/feed/following', protect, eventController.getFollowingEvents);
-router.get('/feed/for-you', protect, eventController.getForYouEvents);
-router.get('/feed/explore', protect, eventController.getExploreEvents);
 
 
 module.exports = router;
