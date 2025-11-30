@@ -1,5 +1,29 @@
 import API from './api';
 
+// 🎯 Detectar automáticamente el entorno (igual que en api.js)
+const getApiUrl = () => {
+  // 1. Si está definido en .env, usarlo
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+
+  // 2. Detectar si es emulador Android
+  if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Android')) {
+    return 'http://10.0.2.2:5001';
+  }
+
+  // 3. Detectar si es web local (navegador)
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:5001';
+    }
+  }
+
+  // 4. Fallback a Render (producción - APK y web)
+  return 'https://enfiestados-api.onrender.com';
+};
+
 export const authService = {
   // Registro
   register: async (userData) => {
@@ -21,11 +45,11 @@ export const authService = {
     return response.data;
   },
 
-  // Login con Google (OAuth)
-loginWithGoogle: () => {
-  const apiURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-  window.location.href = `${apiURL}/api/auth/google`;
-},
+  // Login con Google (OAuth) - Ahora detecta automáticamente el entorno
+  loginWithGoogle: () => {
+    const apiURL = getApiUrl();
+    window.location.href = `${apiURL}/api/auth/google`;
+  },
 
   // Logout
   logout: () => {

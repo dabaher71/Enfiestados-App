@@ -38,4 +38,9 @@ router.post('/:eventId/comments', protect, addComment);
 // Subir imagen
 router.post('/upload-image', protect, upload.single('image'), uploadEventImage);
 
+router.get('/feed/following', protect, eventController.getFollowingEvents);
+router.get('/feed/for-you', protect, eventController.getForYouEvents);
+router.get('/feed/explore', protect, eventController.getExploreEvents);
+
+
 module.exports = router;

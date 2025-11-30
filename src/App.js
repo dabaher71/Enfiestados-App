@@ -4,6 +4,7 @@ import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-map
 import { authService } from './services/authService';
 import { userService } from './services/userService';
 import { eventService } from './services/eventService';
+import FeedTabs from './components/FeedTabs';
 import { notificationService } from './services/notificationService';
 
 // Componente Toast Notification estilo YouTube
@@ -616,191 +617,6 @@ const showToast = (message, type = 'info') => {
   // --- FIN FUNCIONES DE RENDERIZADO (Auth y Onboarding) ---
 
   
-  const renderFeed = () => {
-    const handleEventClick = async (event) => {
-      try {
-        
-        const response = await eventService.getEventById(event._id);
-        setSelectedEvent(response.event);
-        setShowEventDetail(true);
-      } catch (error) {
-        console.error('Error al cargar evento:', error);
-        // NO USAR alert(). Se reemplaza por un console.warn para evitar el bloqueo del iframe.
-        console.warn('Advertencia: El error original usaba alert(), lo cual no funciona en este entorno.'); 
-      }
-    };
-
-    // return de tu feed completo
-    return (
-      <div className="flex-1 overflow-y-auto pb-24">
-        <div className="sticky top-0 z-10 bg-gray-900 p-4 border-b border-gray-800">
-          <div className="flex items-center gap-2 bg-gray-800 rounded-xl px-4 py-3">
-            {/* Si MapPin y Search son componentes de íconos (como Lucide React), deben estar importados */}
-            <Search className="w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              // Debes asegurar que setSearchQuery esté definida con useState en tu componente App
-              onChange={(e) => setSearchQuery(e.target.value)} 
-              className="flex-1 bg-transparent text-white outline-none"
-              placeholder="Buscar eventos..."
-            />
-            <MapPin className="w-5 h-5 text-gray-400" />
-          </div>
-          <div className="flex justify-between items-center mt-3">
-            <button className="text-white text-sm flex items-center gap-2">
-              <Filter className="w-4 h-4" />
-              Filtrar
-            </button>
-            <span className="text-gray-400 text-sm">
-              {events.length} eventos cerca de ti
-            </span>
-          </div>
-        </div>
-
-        {/* renderMap() debe ser una función definida en tu componente App que retorna JSX */}
-        <div className="px-4 mt-4">
-          {renderMap()}
-        </div>
-
-        <div className="px-4 mt-4">
-          {loadingEvents ? (
-            <div className="text-center py-12">
-              <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-              <p className="text-gray-400 mt-4">Cargando eventos...</p>
-            </div>
-          ) : events.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MapPin className="w-10 h-10 text-gray-600" />
-              </div>
-              <h3 className="text-white text-xl font-semibold mb-2">No hay eventos aún</h3>
-              <p className="text-gray-400 mb-6">Sé el primero en crear un evento en tu zona</p>
-              <button
-                // Debes asegurar que setActiveTab esté definida con useState en tu componente App
-                onClick={() => setActiveTab('create')} 
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-all"
-              >
-                Crear Evento
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {events.map((event) => {
-                // availableCategories debe estar definido en tu componente App
-                const category = availableCategories.find(c => c.id === event.category); 
-                // likedEvents debe estar definido en tu componente App
-                const isLiked = likedEvents[event._id]; 
-                
-                return (
-                  <div
-                    key={event._id}
-                    className="bg-gray-800 rounded-2xl overflow-hidden cursor-pointer hover:bg-gray-750 transition-all"
-                    onClick={() => handleEventClick(event)}
-                  >
-                    <div className="relative h-48">
-                      <img
-                        src={event.image || `https://placehold.co/600x480/4F46E5/ffffff?text=Evento+${event.title}`}
-                        alt={event.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                      <div className="absolute top-3 left-3 flex gap-2">
-                        {category && (
-                          <span
-                            className="px-3 py-1 rounded-full text-white text-sm font-semibold"
-                            style={{ backgroundColor: category.color }}
-                          >
-                            {category.icon} {category.name}
-                          </span>
-                        )}
-                        {event.isFree && (
-                          <span className="bg-green-600 px-3 py-1 rounded-full text-white text-sm font-semibold">
-                            Gratis
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="p-4">
-                      <h3 className="text-white text-lg font-bold mb-2">{event.title}</h3>
-                      
-                      <div 
-  className="flex items-center gap-2 text-gray-400 text-sm mb-2 hover:text-blue-400 transition-colors cursor-pointer"
-  onClick={(e) => {
-    e.stopPropagation();
-    if (event.organizer?._id) {
-      const loggedInUser = authService.getCurrentUser();
-      
-      // ✅ Si el organizador eres tú, limpia viewingUserProfile
-      if (event.organizer._id === loggedInUser.id) {
-        setViewingUserProfile(null);
-        setActiveTab('profile');
-      } else {
-        // ✅ Si es otra persona, carga su perfil
-        loadUserProfile(event.organizer._id);
-        setActiveTab('profile');
-      }
-    }
-  }}
->
-  <User className="w-4 h-4" /> 
-  <span>{event.organizer?.name || 'Organizador'}</span>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-gray-400 text-sm mb-2">
-                        <MapPin className="w-4 h-4" />
-                        <span>{event.location?.name || 'Ubicación por confirmar'}</span>
-                      </div>
-
-                      {event.description && (
-                        <p className="text-gray-400 text-sm mb-3 line-clamp-2">
-                          {event.description}
-                        </p>
-                      )}
-
-                      <div className="flex items-center justify-between pt-3 border-t border-gray-700">
-                        <div className="flex gap-4">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // handleLike debe ser una función definida en tu componente App
-                              handleLike(event._id); 
-                            }}
-                            className="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-all"
-                          >
-                            <Heart
-                              className={`w-5 h-5 ${isLiked ? 'fill-red-500 text-red-500' : ''}`}
-                            />
-                            <span className="text-sm">{event.likes?.length || 0}</span>
-                          </button>
-
-                          <button className="flex items-center gap-2 text-gray-400 hover:text-blue-500 transition-all">
-                            <MessageCircle className="w-5 h-5" />
-                            <span className="text-sm">{event.comments?.length || 0}</span>
-                          </button>
-
-                          <button className="flex items-center gap-2 text-gray-400 hover:text-green-500 transition-all">
-                            <Share2 className="w-5 h-5" />
-                          </button>
-                        </div>
-
-                        <div className="flex items-center gap-2 text-gray-400 text-sm">
-                          <User className="w-4 h-4" />
-                          <span>{event.attendees?.length || 0} asistirán</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   const renderUserProfile = () => {
   if (!viewingUserProfile) return null;
@@ -3891,7 +3707,17 @@ const showToast = (message, type = 'info') => {
     
     {/* Contenido principal con scroll */}
     <div className="flex-1 overflow-y-auto">
-      {activeTab === 'feed' && renderFeed()}
+      {activeTab === 'feed' && (
+  <FeedTabs 
+    setActiveTab={setActiveTab}
+    availableCategories={availableCategories}
+    likedEvents={likedEvents}
+    handleLike={handleLike}
+    loadUserProfile={loadUserProfile}
+    setViewingUserProfile={setViewingUserProfile}
+    renderMap={renderMap}
+  />
+)}
       {activeTab === 'search' && renderSearch()}
       {activeTab === 'create' && renderCreate()}
      {activeTab === 'notifications' && (
@@ -4140,5 +3966,5 @@ const showToast = (message, type = 'info') => {
 
 };
 
-export default EventsApp;
+export default EventsApp; 
 

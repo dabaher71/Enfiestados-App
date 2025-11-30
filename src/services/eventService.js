@@ -6,6 +6,7 @@ export const eventService = {
     const response = await API.post('/events', eventData);
     return response.data;
   },
+  
 
   // Obtener todos los eventos
   getEvents: async (filters = {}) => {
@@ -66,7 +67,7 @@ export const eventService = {
 
   // Agregar comentario
   addComment: async (eventId, text) => {
-    const response = await API.post(`/events/${eventId}/comments`, { text });
+    const response = await API.post(`/events/${eventId}/comment`, { text });
     return response.data;
   },
 
@@ -80,5 +81,46 @@ export const eventService = {
       }
     });
     return response.data;
+  },
+
+  // 🆕 TAB 1: Obtener eventos de usuarios que sigues
+  getFollowingEvents: async () => {
+    try {
+      const response = await API.get('/events/feed/following');
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener eventos de seguidos:', error);
+      throw error;
+    }
+  },
+
+  // 🆕 TAB 2: Obtener eventos recomendados (basados en intereses)
+  getForYouEvents: async () => {
+    try {
+      const response = await API.get('/events/feed/for-you');
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener eventos recomendados:', error);
+      throw error;
+    }
+  },
+
+  // 🆕 TAB 3: Obtener eventos para explorar (cercanos y populares)
+  getExploreEvents: async (params = {}) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params.lat) queryParams.append('lat', params.lat);
+      if (params.lng) queryParams.append('lng', params.lng);
+      if (params.radius) queryParams.append('radius', params.radius);
+
+      const url = `/events/feed/explore${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const response = await API.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener eventos para explorar:', error);
+      throw error;
+    }
   }
 };
+
+export default eventService;

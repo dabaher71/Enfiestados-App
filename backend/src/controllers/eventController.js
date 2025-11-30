@@ -517,3 +517,140 @@ exports.getEventsByOrganizer = async (req, res) => {
         });
     }
 };
+
+// 🆕 TAB 1: Eventos de usuarios que sigues
+exports.getFollowingEvents = async (req, res) => {
+    try {
+        // Obtener el usuario actual con su lista de seguidos
+        const user = await User.findById(req.user.id).select('following');
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'Usuario no encontrado'
+            });
+        }
+
+        // Filtrar eventos de hoy en adelante
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Obtener eventos solo de usuarios que el usuario sigue
+        const events = await Event.find({
+            organizer: { $in: user.following },
+            date: { $gte: today }
+        })
+            .populate('organizer', 'name avatar')
+            .sort({ date: 1, time: 1 }); // Ordenar por fecha más cercana
+
+        res.status(200).json({
+            success: true,
+            count: events.length,
+            events
+        });
+    } catch (error) {
+        console.error('Error al obtener eventos de seguidos:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error al obtener eventos de seguidos',
+            error: error.message
+        });
+    }
+};
+
+// 🆕 TAB 2: Eventos recomendados para ti (basados en intereses)
+exports.getForYouEvents = async (req, res) => {
+    try {
+        // Obtener intereses del usuario
+        const user = await User.findById(req.user.id).select('categories interests');
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'Usuario no encontrado'
+            });
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Buscar eventos que coincidan con las categorías/intereses del usuario
+        const interestArray = user.categories && user.categories.length > 0 
+            ? user.categories 
+            : user.interests || [];
+
+        let query = {
+            date: { $gte: today }
+        };
+
+        // Si el usuario tiene intereses, filtrar por ellos
+        if (interestArray.length > 0) {
+            query.category = { $in: interestArray };
+        }
+
+        const events = await Event.find(query)
+            .populate('organizer', 'name avatar')
+            .sort({ createdAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            count: events.length,
+            events
+        });
+    } catch (error) {
+        console.error('Error al obtener eventos recomendados:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error al obtener eventos recomendados',
+            error: error.message
+        });
+    }
+};
+
+// 🆕 TAB 3: Explorar todos los eventos (cercanos y populares)
+exports.getExploreEvents = async (req, res) => {
+    try {
+        const { lat, lng, radius = 50000 } = req.query; // radius en metros, 50km por defecto
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        let query = {
+            date: { $gte: today }
+        };
+
+        // Si hay ubicación, filtrar por proximidad
+        if (lat && lng) {
+            query.location = {
+                $near: {
+                    $geometry: {
+                        type: 'Point',
+                        coordinates: [parseFloat(lng), parseFloat(lat)]
+                    },
+                    $maxDistance: parseInt(radius)
+                }
+            };
+        }
+
+        // Obtener eventos y ordenar por cantidad de likes (popularidad)
+        const events = await Event.find(query)
+            .populate('organizer', 'name avatar')
+            .sort({ 
+                likes: -1, // Primero los más populares
+                date: 1    // Luego por fecha más cercana
+            });
+
+        res.status(200).json({
+            success: true,
+            count: events.length,
+            events
+        });
+    } catch (error) {
+        console.error('Error al obtener eventos para explorar:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error al obtener eventos para explorar',
+            error: error.message
+        });
+    }
+};

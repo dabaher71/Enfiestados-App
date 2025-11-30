@@ -1,6 +1,8 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const User = require('../models/User');
+const callbackURL = process.env.GOOGLE_CALLBACK_URL || process.env.GOOGLE_CALLBACK_URL_EMULATOR || process.env.GOOGLE_CALLBACK_URL_LOCAL;
+
 
 // ✅ LOGS DE DIAGNÓSTICO
 console.log('🔍 ========== VERIFICANDO CREDENCIALES DE GOOGLE ==========');
