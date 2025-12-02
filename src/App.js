@@ -4,6 +4,7 @@ import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-map
 import { authService } from './services/authService';
 import { userService } from './services/userService';
 import { eventService } from './services/eventService';
+import LoadingScreen from './components/LoadingScreen';
 import FeedTabs from './components/FeedTabs';
 import { notificationService } from './services/notificationService';
 
@@ -130,6 +131,7 @@ const EventsApp = () => {
   const [likedEvents, setLikedEvents] = useState({});
   const [userLocation, setUserLocation] = useState(null);
   const [locationPermission, setLocationPermission] = useState('pending');
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [selectedMarker, setSelectedMarker] = useState(null);
   const [map, setMap] = useState(null);
   const [formData, setFormData] = useState({
@@ -160,6 +162,7 @@ const EventsApp = () => {
     acceptsOnlinePayment: true
   });
   const [isFollowing, setIsFollowing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [profileRefresh, setProfileRefresh] = useState(0);
   const [currentUserData, setCurrentUserData] = useState(null);
   const [events, setEvents] = useState([]);
@@ -226,6 +229,17 @@ const EventsApp = () => {
       }
     ]
   };
+
+
+  useEffect(() => {
+  // Simular carga inicial de 2 segundos
+  const timer = setTimeout(() => {
+    setIsLoading(false);
+  }, 2000);
+
+  return () => clearTimeout(timer);
+  }, []);
+
 
   // Cargar datos del usuario al iniciar
   
@@ -881,12 +895,26 @@ const showToast = (message, type = 'info') => {
 };
 
   const renderCreate = () => {
+
+
     const handleEventInputChange = (field, value) => {
       setEventData(prev => ({
         ...prev,
         [field]: value
       }));
     };
+
+ if (isCreatingEvent) {
+  return (
+    <LoadingScreen 
+      show={true}
+      backgroundColor="#0f172a"
+      imageSrc="/logo.png"
+      imageAlt="Creando evento..."
+      fullScreen={true}  // CAMBIAR A true
+    />
+  );
+}
 
     const handleImageUpload = (e) => {
       const file = e.target.files[0];
@@ -913,78 +941,84 @@ const showToast = (message, type = 'info') => {
       }));
     };
 
-    const handleSubmitEvent = async () => {
-      if (!eventData.title || !eventData.category || !eventData.date || !eventData.time) {
-        showToast('Por favor completa todos los campos requeridos', 'error');
-        return;
-      }
+      const handleSubmitEvent = async () => {
+  if (!eventData.title || !eventData.category || !eventData.date || !eventData.time) {
+    showToast('Por favor completa todos los campos requeridos', 'error');
+    return;
+  }
 
-      const selectedDate = new Date(eventData.date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+  const selectedDate = new Date(eventData.date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-      if (selectedDate < today) {
-        showToast('❌ No puedes crear eventos en fechas pasadas', 'error');
-        return;
-          }
-      
-      if (!eventData.location) {
-        showToast('Por favor selecciona una ubicación en el mapa', 'error');
-        return;
-      }
+  if (selectedDate < today) {
+    showToast('❌ No puedes crear eventos en fechas pasadas', 'error');
+    return;
+  }
 
-      try {
-        let imageUrl = null;
-        if (eventData.image) {
-          const imageData = await eventService.uploadEventImage(eventData.image);
-          imageUrl = imageData.image;
-        }
+  if (!eventData.location) {
+    showToast('Por favor selecciona una ubicación en el mapa', 'error');
+    return;
+  }
 
-        const newEvent = {
-          title: eventData.title,
-          description: eventData.description,
-          category: eventData.category,
-          date: eventData.date,
-          time: eventData.time,
-          location: eventData.location,
-          locationName: eventData.locationName,
-          price: eventData.isFree ? 0 : parseFloat(eventData.price) || 0,
-          isFree: eventData.isFree,
-          capacity: eventData.capacity ? parseInt(eventData.capacity) : null,
-          hasParking: eventData.hasParking,
-          acceptsOnlinePayment: eventData.acceptsOnlinePayment,
-          image: imageUrl
-        };
+  // 🆕 ACTIVAR LOADING
+  setIsCreatingEvent(true);
 
-        await eventService.createEvent(newEvent);
-        
-        showToast('🎉 ¡Evento creado exitosamente!', 'success');
-        
-        await loadEvents();
-        
-        setCreateEventStep(1);
-        setEventData({
-          title: '',
-          description: '',
-          category: '',
-          date: '',
-          time: '',
-          location: userLocation || { lat: 9.9281, lng: -84.0907 },
-          locationName: '',
-          price: '',
-          isFree: true,
-          capacity: '',
-          image: null,
-          imagePreview: null,
-          hasParking: false,
-          acceptsOnlinePayment: true
-        });
-        
-        setActiveTab('feed');
-      } catch (error) {
-        console.error('Error al crear evento:', error);
-        showToast('❌ Error al crear evento: ' + (error.response?.data?.message || error.message), 'error');
-      }
+  try {
+    let imageUrl = null;
+    if (eventData.image) {
+      const imageData = await eventService.uploadEventImage(eventData.image);
+      imageUrl = imageData.image;
+    }
+
+    const newEvent = {
+      title: eventData.title,
+      description: eventData.description,
+      category: eventData.category,
+      date: eventData.date,
+      time: eventData.time,
+      location: eventData.location,
+      locationName: eventData.locationName,
+      price: eventData.isFree ? 0 : parseFloat(eventData.price) || 0,
+      isFree: eventData.isFree,
+      capacity: eventData.capacity ? parseInt(eventData.capacity) : null,
+      hasParking: eventData.hasParking,
+      acceptsOnlinePayment: eventData.acceptsOnlinePayment,
+      image: imageUrl
+    };
+
+    await eventService.createEvent(newEvent);
+    
+    showToast('🎉 ¡Evento creado exitosamente!', 'success');
+    
+    await loadEvents();
+    
+    setCreateEventStep(1);
+    setEventData({
+      title: '',
+      description: '',
+      category: '',
+      date: '',
+      time: '',
+      location: userLocation || { lat: 9.9281, lng: -84.0907 },
+      locationName: '',
+      price: '',
+      isFree: true,
+      capacity: '',
+      image: null,
+      imagePreview: null,
+      hasParking: false,
+      acceptsOnlinePayment: true
+    });
+    
+    setActiveTab('feed');
+  } catch (error) {
+    console.error('Error al crear evento:', error);
+    showToast('❌ Error al crear evento: ' + (error.response?.data?.message || error.message), 'error');
+  } finally {
+    // 🆕 DESACTIVAR LOADING (al final, suceda lo que suceda)
+    setIsCreatingEvent(false);
+  }
     };
 
     if (createEventStep === 1) {
@@ -3694,277 +3728,296 @@ const showToast = (message, type = 'info') => {
 
   
 
-  return (
+ return (
   <div className="w-full h-screen bg-gray-900 flex flex-col max-w-md mx-auto overflow-hidden relative">
-    {/* Toast Notification */}
-    {toast && (
-      <Toast 
-        message={toast.message} 
-        type={toast.type}
-        onClose={() => setToast(null)}
+    
+    {/* 🆕 LOADING SCREEN */}
+    {isLoading && (
+      <LoadingScreen 
+        show={true}
+        backgroundColor="#0f172a"
+        imageSrc="/logo.png"
+        imageAlt="Enfiestados"
+        fullScreen={true}
       />
     )}
-    
-    {/* Contenido principal con scroll */}
-    <div className="flex-1 overflow-y-auto">
-      {activeTab === 'feed' && (
-  <FeedTabs 
-    setActiveTab={setActiveTab}
-    availableCategories={availableCategories}
-    likedEvents={likedEvents}
-    handleLike={handleLike}
-    loadUserProfile={loadUserProfile}
-    setViewingUserProfile={setViewingUserProfile}
-    renderMap={renderMap}
-  />
-)}
-      {activeTab === 'search' && renderSearch()}
-      {activeTab === 'create' && renderCreate()}
-     {activeTab === 'notifications' && (
-  <div className="max-w-2xl mx-auto p-4">
-    <div className="flex items-center justify-between mb-4">
-      <h1 className="text-white text-2xl font-bold">Notificaciones</h1>
-      {activityNotifications.some(n => !n.read) && (
-        <button
-          onClick={async () => {
-            try {
-              await notificationService.markAllAsRead();
-              setActivityNotifications(activityNotifications.map(n => ({ ...n, read: true })));
-            } catch (error) {
-              console.error('Error al marcar todas:', error);
-            }
-          }}
-          className="text-blue-500 text-sm font-medium hover:text-blue-400"
-        >
-          Marcar todas como leídas
-        </button>
-      )}
-    </div>
-    
-    {/* ✅ Solicitudes de seguimiento */}
-    {followRequests.length > 0 && (
-      <div className="mb-6">
-        <h2 className="text-white font-semibold mb-3 text-lg">Solicitudes de seguimiento</h2>
-        <div className="space-y-3">
-          {followRequests.map(requester => (
-            <div key={requester._id} className="bg-gray-800 rounded-xl p-4 flex items-center gap-3">
-              <img 
-                src={requester.avatar || 'https://via.placeholder.com/50'} 
-                alt={requester.name}
-                className="w-12 h-12 rounded-full object-cover"
-              />
-              <div className="flex-1">
-                <p className="text-white font-semibold">{requester.name}</p>
-                <p className="text-gray-400 text-sm">Quiere seguirte</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    try {
-                      await userService.acceptFollowRequest(requester._id);
-                      setFollowRequests(followRequests.filter(r => r._id !== requester._id));
-                      
-                      const currentUser = authService.getCurrentUser();
-                      if (currentUser) {
-                        currentUser.followers = [...(currentUser.followers || []), requester._id];
-                        localStorage.setItem('user', JSON.stringify(currentUser));
-                        setUser(currentUser);
-                      }
-                      
-                      showToast('Solicitud aceptada', 'success');
-                    } catch (error) {
-                      console.error('Error al aceptar:', error);
-                      showToast('Error al aceptar solicitud', 'error');
-                    }
-                  }}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                >
-                  Aceptar
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      await userService.rejectFollowRequest(requester._id);
-                      setFollowRequests(followRequests.filter(r => r._id !== requester._id));
-                      showToast('Solicitud rechazada', 'error');
-                    } catch (error) {
-                      console.error('Error al rechazar:', error);
-                      showToast('Error al rechazar solicitud', 'error');
-                    }
-                  }}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
-                >
-                  Rechazar
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
 
-    {/* ✅ Notificaciones de actividad */}
-    {activityNotifications.length > 0 ? (
-      <div>
-        <h2 className="text-white font-semibold mb-3 text-lg">Actividad</h2>
-        <div className="space-y-2">
-          {activityNotifications.map(notif => {
-            const getNotificationText = () => {
-              switch (notif.type) {
-                case 'like':
-                  return 'le dio me gusta a tu evento';
-                case 'comment':
-                  return 'comentó en tu evento';
-                case 'attend':
-                  return 'confirmó asistencia a tu evento';
-                default:
-                  return 'interactuó con tu evento';
-              }
-            };
-
-            const getNotificationIcon = () => {
-              switch (notif.type) {
-                case 'like':
-                  return '❤️';
-                case 'comment':
-                  return '💬';
-                case 'attend':
-                  return '✅';
-                default:
-                  return '🔔';
-              }
-            };
-
-            return (
-              <div 
-                key={notif._id}
-                onClick={async () => {
-                  if (!notif.read) {
-                    try {
-                      await notificationService.markAsRead(notif._id);
-                      setActivityNotifications(
-                        activityNotifications.map(n => 
-                          n._id === notif._id ? { ...n, read: true } : n
-                        )
-                      );
-                    } catch (error) {
-                      console.error('Error al marcar:', error);
-                    }
-                  }
-                  
-                  // Navegar al evento
-                  if (notif.event) {
-                    try {
-                      const response = await eventService.getEventById(notif.event._id);
-                      setSelectedEvent(response.event);
-                      setShowEventDetail(true);
-                    } catch (error) {
-                      console.error('Error al cargar evento:', error);
-                    }
-                  }
-                }}
-                className={`p-4 rounded-xl flex items-center gap-3 cursor-pointer transition-all ${
-                  notif.read 
-                    ? 'bg-gray-800 hover:bg-gray-750' 
-                    : 'bg-blue-900/30 hover:bg-blue-900/40 border-l-4 border-blue-500'
-                }`}
-              >
-                <img 
-                  src={notif.sender?.avatar || 'https://via.placeholder.com/50'} 
-                  alt={notif.sender?.name}
-                  className="w-12 h-12 rounded-full object-cover"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-white">
-                    <span className="font-semibold">{notif.sender?.name}</span>
-                    {' '}
-                    <span className="text-gray-400">{getNotificationText()}</span>
-                  </p>
-                  {notif.event && (
-                    <p className="text-gray-500 text-sm truncate">
-                      {notif.event.title}
-                    </p>
-                  )}
-                  {notif.comment && (
-                    <p className="text-gray-400 text-sm italic truncate mt-1">
-                      "{notif.comment}"
-                    </p>
-                  )}
-                  <p className="text-gray-500 text-xs mt-1">
-                    {new Date(notif.createdAt).toLocaleDateString('es-ES', {
-                      day: 'numeric',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-                <div className="text-2xl">{getNotificationIcon()}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    ) : followRequests.length === 0 ? (
-      <div className="text-center py-12 bg-gray-800 rounded-xl">
-        <Bell className="w-16 h-16 text-gray-600 mx-auto mb-3" />
-        <p className="text-gray-400">No tienes notificaciones</p>
-      </div>
-    ) : null}
-  </div>
+    {/* MOSTRAR TODO SOLO SI NO ESTÁ CARGANDO */}
+    {!isLoading && (
+      <>
+        {/* Toast Notification */}
+        {toast && (
+          <Toast 
+            message={toast.message} 
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
         )}
-      {activeTab === 'userProfile' && renderUserProfile()}
-      {activeTab === 'profile' && <div key={profileRefresh}>{renderProfile()}</div>}
-    </div>
+        
+        {/* Contenido principal con scroll */}
+        <div className="flex-1 overflow-y-auto">
+          {activeTab === 'feed' && (
+            <FeedTabs 
+              setActiveTab={setActiveTab}
+              availableCategories={availableCategories}
+              likedEvents={likedEvents}
+              handleLike={handleLike}
+              loadUserProfile={loadUserProfile}
+              setViewingUserProfile={setViewingUserProfile}
+              renderMap={renderMap}
+              setSelectedEvent={setSelectedEvent}        
+              setShowEventDetail={setShowEventDetail}  
+            />
+          )}
+          {activeTab === 'search' && renderSearch()}
+          {activeTab === 'create' && renderCreate()}
+          {activeTab === 'notifications' && (
+            <div className="max-w-2xl mx-auto p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-white text-2xl font-bold">Notificaciones</h1>
+                {activityNotifications.some(n => !n.read) && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await notificationService.markAllAsRead();
+                        setActivityNotifications(activityNotifications.map(n => ({ ...n, read: true })));
+                      } catch (error) {
+                        console.error('Error al marcar todas:', error);
+                      }
+                    }}
+                    className="text-blue-500 text-sm font-medium hover:text-blue-400"
+                  >
+                    Marcar todas como leídas
+                  </button>
+                )}
+              </div>
+              
+              {/* ✅ Solicitudes de seguimiento */}
+              {followRequests.length > 0 && (
+                <div className="mb-6">
+                  <h2 className="text-white font-semibold mb-3 text-lg">Solicitudes de seguimiento</h2>
+                  <div className="space-y-3">
+                    {followRequests.map(requester => (
+                      <div key={requester._id} className="bg-gray-800 rounded-xl p-4 flex items-center gap-3">
+                        <img 
+                          src={requester.avatar || 'https://via.placeholder.com/50'} 
+                          alt={requester.name}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                        <div className="flex-1">
+                          <p className="text-white font-semibold">{requester.name}</p>
+                          <p className="text-gray-400 text-sm">Quiere seguirte</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={async () => {
+                              try {
+                                await userService.acceptFollowRequest(requester._id);
+                                setFollowRequests(followRequests.filter(r => r._id !== requester._id));
+                                
+                                const currentUser = authService.getCurrentUser();
+                                if (currentUser) {
+                                  currentUser.followers = [...(currentUser.followers || []), requester._id];
+                                  localStorage.setItem('user', JSON.stringify(currentUser));
+                                  setUser(currentUser);
+                                }
+                                
+                                showToast('Solicitud aceptada', 'success');
+                              } catch (error) {
+                                console.error('Error al aceptar:', error);
+                                showToast('Error al aceptar solicitud', 'error');
+                              }
+                            }}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                          >
+                            Aceptar
+                          </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await userService.rejectFollowRequest(requester._id);
+                                setFollowRequests(followRequests.filter(r => r._id !== requester._id));
+                                showToast('Solicitud rechazada', 'error');
+                              } catch (error) {
+                                console.error('Error al rechazar:', error);
+                                showToast('Error al rechazar solicitud', 'error');
+                              }
+                            }}
+                            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+                          >
+                            Rechazar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-    {/* Modales */}
-    {renderEditProfileModal()}
-    {renderEventDetailModal()}
-    {renderEditEventModal()} 
-    {/* Barra de navegación inferior  */}
-    <div className="bg-gray-950 border-t border-gray-800 px-6 py-3 flex justify-around items-center sticky bottom-0 z-50 safe-area-bottom">
-  <button
-    onClick={() => handleTabChange('feed')}
-    className={`p-2 transition-colors ${activeTab === 'feed' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
-  >
-    <Home className="w-6 h-6" />
-  </button>
-  <button
-    onClick={() => handleTabChange('search')}
-    className={`p-2 transition-colors ${activeTab === 'search' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
-  >
-    <Search className="w-6 h-6" />
-  </button>
-  <button
-    onClick={() => handleTabChange('create')}
-    className={`p-2 transition-colors ${activeTab === 'create' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
-  >
-    <Plus className="w-7 h-7" />
-  </button>
-  <button
-    onClick={() => handleTabChange('notifications')}
-    className={`p-2 relative transition-colors ${activeTab === 'notifications' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
-  >
-    <Bell className="w-6 h-6" />
-    {/* ✅ Badge para mostrar cantidad de solicitudes */}
-    {followRequests.length > 0 && (
-      <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-        {followRequests.length}
-      </span>
+              {/* ✅ Notificaciones de actividad */}
+              {activityNotifications.length > 0 ? (
+                <div>
+                  <h2 className="text-white font-semibold mb-3 text-lg">Actividad</h2>
+                  <div className="space-y-2">
+                    {activityNotifications.map(notif => {
+                      const getNotificationText = () => {
+                        switch (notif.type) {
+                          case 'like':
+                            return 'le dio me gusta a tu evento';
+                          case 'comment':
+                            return 'comentó en tu evento';
+                          case 'attend':
+                            return 'confirmó asistencia a tu evento';
+                          default:
+                            return 'interactuó con tu evento';
+                        }
+                      };
+
+                      const getNotificationIcon = () => {
+                        switch (notif.type) {
+                          case 'like':
+                            return '❤️';
+                          case 'comment':
+                            return '💬';
+                          case 'attend':
+                            return '✅';
+                          default:
+                            return '🔔';
+                        }
+                      };
+
+                      return (
+                        <div 
+                          key={notif._id}
+                          onClick={async () => {
+                            if (!notif.read) {
+                              try {
+                                await notificationService.markAsRead(notif._id);
+                                setActivityNotifications(
+                                  activityNotifications.map(n => 
+                                    n._id === notif._id ? { ...n, read: true } : n
+                                  )
+                                );
+                              } catch (error) {
+                                console.error('Error al marcar:', error);
+                              }
+                            }
+                            
+                            if (notif.event) {
+                              try {
+                                const response = await eventService.getEventById(notif.event._id);
+                                setSelectedEvent(response.event);
+                                setShowEventDetail(true);
+                              } catch (error) {
+                                console.error('Error al cargar evento:', error);
+                              }
+                            }
+                          }}
+                          className={`p-4 rounded-xl flex items-center gap-3 cursor-pointer transition-all ${
+                            notif.read 
+                              ? 'bg-gray-800 hover:bg-gray-750' 
+                              : 'bg-blue-900/30 hover:bg-blue-900/40 border-l-4 border-blue-500'
+                          }`}
+                        >
+                          <img 
+                            src={notif.sender?.avatar || 'https://via.placeholder.com/50'} 
+                            alt={notif.sender?.name}
+                            className="w-12 h-12 rounded-full object-cover"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white">
+                              <span className="font-semibold">{notif.sender?.name}</span>
+                              {' '}
+                              <span className="text-gray-400">{getNotificationText()}</span>
+                            </p>
+                            {notif.event && (
+                              <p className="text-gray-500 text-sm truncate">
+                                {notif.event.title}
+                              </p>
+                            )}
+                            {notif.comment && (
+                              <p className="text-gray-400 text-sm italic truncate mt-1">
+                                "{notif.comment}"
+                              </p>
+                            )}
+                            <p className="text-gray-500 text-xs mt-1">
+                              {new Date(notif.createdAt).toLocaleDateString('es-ES', {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                          <div className="text-2xl">{getNotificationIcon()}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : followRequests.length === 0 ? (
+                <div className="text-center py-12 bg-gray-800 rounded-xl">
+                  <Bell className="w-16 h-16 text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-400">No tienes notificaciones</p>
+                </div>
+              ) : null}
+            </div>
+          )}
+          {activeTab === 'userProfile' && renderUserProfile()}
+          {activeTab === 'profile' && <div key={profileRefresh}>{renderProfile()}</div>}
+        </div>
+
+        {/* Modales */}
+        {renderEditProfileModal()}
+        {renderEventDetailModal()}
+        {renderEditEventModal()} 
+
+        {/* Barra de navegación inferior - NO MOSTRAR SI ESTÁ CREANDO EVENTO */}
+{!isCreatingEvent && (
+  <div className="bg-gray-950 border-t border-gray-800 px-6 py-3 flex justify-around items-center sticky bottom-0 z-50 safe-area-bottom">
+    <button
+      onClick={() => handleTabChange('feed')}
+      className={`p-2 transition-colors ${activeTab === 'feed' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
+    >
+      <Home className="w-6 h-6" />
+    </button>
+    <button
+      onClick={() => handleTabChange('search')}
+      className={`p-2 transition-colors ${activeTab === 'search' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
+    >
+      <Search className="w-6 h-6" />
+    </button>
+    <button
+      onClick={() => handleTabChange('create')}
+      className={`p-2 transition-colors ${activeTab === 'create' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
+    >
+      <Plus className="w-7 h-7" />
+    </button>
+    <button
+      onClick={() => handleTabChange('notifications')}
+      className={`p-2 relative transition-colors ${activeTab === 'notifications' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
+    >
+      <Bell className="w-6 h-6" />
+      {followRequests.length > 0 && (
+        <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+          {followRequests.length}
+        </span>
+      )}
+    </button>
+    <button
+      onClick={() => handleTabChange('profile')}
+      className={`p-2 transition-colors ${activeTab === 'profile' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
+    >
+      <User className="w-6 h-6" />
+    </button>
+  </div>
+)}
+      </>
     )}
-  </button>
-  <button
-    onClick={() => handleTabChange('profile')}
-    className={`p-2 transition-colors ${activeTab === 'profile' ? 'text-white' : 'text-gray-500 hover:text-gray-400'}`}
-  >
-    <User className="w-6 h-6" />
-  </button>
-      </div>
   </div>
 );
 
-
 };
 
-export default EventsApp; 
+export default EventsApp;
 

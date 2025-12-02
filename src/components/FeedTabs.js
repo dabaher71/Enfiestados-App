@@ -10,16 +10,16 @@ const FeedTabs = ({
   handleLike,
   loadUserProfile,
   setViewingUserProfile,
-  renderMap
+  renderMap,
+  setSelectedEvent,       
+  setShowEventDetail,  
 }) => {
   const [feedTab, setFeedTab] = useState('para-ti'); // 'para-ti', 'siguiendo', 'explorar'
   const [events, setEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [userLocation, setUserLocation] = useState(null);
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [showEventDetail, setShowEventDetail] = useState(false);
-
+  
   // 📍 Obtener ubicación del usuario
   useEffect(() => {
     if (navigator.geolocation) {
