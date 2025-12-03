@@ -180,6 +180,7 @@ const EventsApp = () => {
   const [followLoading, setFollowLoading] = useState(false);
   const [editEventStep, setEditEventStep] = useState(1);
   const [activityNotifications, setActivityNotifications] = useState([]);
+const [showSettingsModal, setShowSettingsModal] = useState(false);
 
     const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -1404,7 +1405,7 @@ const showToast = (message, type = 'info') => {
   </div>
   );
 
-  const renderProfile = () => {
+ const renderProfile = () => {
   // ✅ Usuario logueado (tú)
   const loggedInUser = currentUserData || authService.getCurrentUser();
   
@@ -1439,16 +1440,106 @@ const showToast = (message, type = 'info') => {
 
   return (
     <div className="flex-1 overflow-y-auto pb-20">
-      <div className="absolute top-4 right-4 z-10 flex gap-2">
-        <button className="bg-white/90 backdrop-blur-sm p-3 rounded-full shadow-lg">
+      <div className="absolute top-4 right-4 z-20 flex gap-2">
+        <button className="bg-white/90 backdrop-blur-sm p-3 rounded-full shadow-lg hover:bg-white transition-all">
           <Share2 className="w-5 h-5 text-gray-900" />
         </button>
-        <button className="bg-white/90 backdrop-blur-sm p-3 rounded-full shadow-lg">
-          <svg className="w-5 h-5 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </button>
+        {isOwnProfile && (
+          <div className="relative">
+            <button 
+              onClick={() => {
+                const menu = document.getElementById('settings-menu');
+                if (menu) {
+                  menu.classList.toggle('hidden');
+                }
+              }}
+              className="bg-white/90 backdrop-blur-sm p-3 rounded-full shadow-lg hover:bg-white transition-all"
+            >
+              <svg className="w-5 h-5 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+
+            {/* 🆕 DROPDOWN MENU */}
+            <div 
+              id="settings-menu"
+              className="hidden absolute top-full right-0 mt-2 bg-gray-800 rounded-xl shadow-xl border border-gray-700 min-w-max z-50"
+            >
+              <button
+                onClick={() => {
+                  authService.logout();
+                  setIsAuthenticated(false);
+                  setCurrentUserData(null);
+                  const menu = document.getElementById('settings-menu');
+                  if (menu) menu.classList.add('hidden');
+                }}
+                className="w-full text-left px-4 py-3 text-red-500 hover:bg-gray-700 rounded-t-xl flex items-center gap-2 transition-all first:rounded-t-xl"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Cerrar Sesión
+              </button>
+
+              <div className="h-px bg-gray-700"></div>
+
+              <button
+                onClick={() => {
+                  const menu = document.getElementById('settings-menu');
+                  if (menu) menu.classList.add('hidden');
+                }}
+                className="w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 flex items-center gap-2 transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                Privacidad
+              </button>
+
+              <button
+                onClick={() => {
+                  const menu = document.getElementById('settings-menu');
+                  if (menu) menu.classList.add('hidden');
+                }}
+                className="w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 flex items-center gap-2 transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0120 15.571V11a6 6 0 00-5-5.917V5a2 2 0 10-4 0v.083A6 6 0 004 11v4.571a2.032 2.032 0 01-.595 1.409L2 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                Notificaciones
+              </button>
+
+              <button
+                onClick={() => {
+                  const menu = document.getElementById('settings-menu');
+                  if (menu) menu.classList.add('hidden');
+                }}
+                className="w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 flex items-center gap-2 transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Ayuda
+              </button>
+
+              <button
+                onClick={() => {
+                  const menu = document.getElementById('settings-menu');
+                  if (menu) menu.classList.add('hidden');
+                }}
+                className="w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 flex items-center gap-2 transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Acerca de
+              </button>
+
+              <div className="h-px bg-gray-700"></div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="relative h-48">
@@ -1466,68 +1557,68 @@ const showToast = (message, type = 'info') => {
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-gray-900/50"></div>
       </div>
 
-      <div className="px-6 -mt-16 relative">
-        <div className="relative inline-block">
-          {profileData.avatar ? (
-            <img 
-              src={profileData.avatar} 
-              alt="Avatar" 
-              className="w-28 h-28 rounded-full border-4 border-gray-900 object-cover bg-gray-700"
-              loading="lazy"
-              decoding="async"
-            />
-          ) : (
-            <div className="w-28 h-28 rounded-full border-4 border-gray-900 bg-gray-700 flex items-center justify-center">
-              <User className="w-14 h-14 text-gray-500" />
+      <div className="px-6 -mt-20 relative mb-6">
+        {/* Avatar grande + Stats en horizontal */}
+        <div className="flex gap-6 items-end mb-4">
+          {/* Avatar */}
+          <div className="flex-shrink-0 relative">
+            {profileData.avatar ? (
+              <img 
+                src={profileData.avatar} 
+                alt="Avatar" 
+                className="w-40 h-40 rounded-full border-4 border-gray-900 object-cover bg-gray-700"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <div className="w-40 h-40 rounded-full border-4 border-gray-900 bg-gray-700 flex items-center justify-center">
+                <User className="w-20 h-20 text-gray-500" />
+              </div>
+            )}
+            {isOwnProfile && (
+              <button 
+                onClick={() => setShowEditProfile(true)}
+                className="absolute bottom-2 right-2 bg-blue-600 p-3 rounded-full border-2 border-gray-900 hover:bg-blue-700 transition-all"
+              >
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {/* Stats al lado con divisores */}
+          <div className="flex gap-0 flex-1 pb-2">
+            <div className="text-center flex-1">
+              <div className="text-white text-2xl font-bold">{profileData.eventsCount}</div>
+              <div className="text-gray-400 text-xs">Eventos</div>
             </div>
-          )}
-          {isOwnProfile && (
-            <button 
-              onClick={() => setShowEditProfile(true)}
-              className="absolute bottom-0 right-0 bg-blue-600 p-2 rounded-full border-2 border-gray-900 hover:bg-blue-700 transition-all"
-            >
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </button>
-          )}
-        </div>
-
-        <div className="flex gap-8 mt-4 mb-4">
-          <div className="text-center">
-            <div className="text-white text-2xl font-bold">{profileData.eventsCount}</div>
-            <div className="text-gray-400 text-xs">Eventos</div>
-          </div>
-          <div className="text-center">
-            <div className="text-white text-2xl font-bold">{profileUser?.followers?.length || 0}</div>
-            <div className="text-gray-400 text-xs">Seguidores</div>
-          </div>
-          <div className="text-center">
-            <div className="text-white text-2xl font-bold">{profileData.interestsCount}</div>
-            <div className="text-gray-400 text-xs">Intereses</div>
+            <div className="h-12 w-px bg-gray-700 mx-2"></div>
+            <div className="text-center flex-1">
+              <div className="text-white text-2xl font-bold">{profileUser?.followers?.length || 0}</div>
+              <div className="text-gray-400 text-xs">Seguidores</div>
+            </div>
+            <div className="h-12 w-px bg-gray-700 mx-2"></div>
+            <div className="text-center flex-1">
+              <div className="text-white text-2xl font-bold">{profileData.interestsCount}</div>
+              <div className="text-gray-400 text-xs">Intereses</div>
+            </div>
           </div>
         </div>
 
+        {/* Nombre y bio en su lugar original */}
         <h1 className="text-white text-2xl font-bold mb-3">{profileData.name}</h1>
 
         {/* Bio */}
         {profileUser?.bio && (
           <p className="text-gray-400 text-sm mb-4">{profileUser.bio}</p>
         )}
+      </div>
 
+      <div className="px-6">
         {isOwnProfile ? (
           <>
-            <button 
-              onClick={() => {
-                authService.logout();
-                setIsAuthenticated(false);
-                setCurrentUserData(null);
-              }}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-xl transition-all mb-3"
-            >
-              Cerrar Sesión
-            </button>
             <button 
               onClick={() => setShowEditProfile(true)}
               className="w-full bg-gray-800 hover:bg-gray-700 text-white font-semibold py-3 rounded-xl transition-all mb-6"
@@ -2049,9 +2140,8 @@ const showToast = (message, type = 'info') => {
       </div>
     </div>
   );
-  };
+};
 
- 
   const loadUserProfile = async (userId) => {
   try {
     setLoadingUserProfile(true);
